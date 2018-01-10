@@ -2,12 +2,12 @@
 
 Run container:
 ```
-docker run -d --name wake-on-lan --net=host -e MAC='11:11:11:11:11:11' r0gger/wake-on-lan
+docker run -d --name wake-on-lan --net=host -e MAC='11:11:11:11:11:11' r0gger/docker-wake-on-lan
 ```
 
 Run container and clean-up container after successfull run:
 ```
-docker run --rm --name wake-on-lan --net=host -e MAC='11:11:11:11:11' r0gger/wake-on-lan
+docker run --rm --name wake-on-lan --net=host -e MAC='11:11:11:11:11' r0gger/docker-wake-on-lan
 ```
 
 * `--rm` - clean up container after succesfull run.
