@@ -4,6 +4,11 @@
 ```
 docker run -d --name wake-on-lan --net=host -e MAC='11:11:11:11:11:11' r0gger/docker-wake-on-lan
 ```
+    
+or add multiple mac-addresses (space seperated):  
+```
+docker run -d --name wake-on-lan --net=host -e MAC='11:11:11:11:11:11 22:22:22:22:22:22 33:33:33:33:33:33' r0gger/docker-wake-on-lan
+```
    
 **Run container and clean-up container after successfull run:**
 ```
