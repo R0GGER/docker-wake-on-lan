@@ -8,4 +8,4 @@ ENV MAC 11:11:11:11:11:11
 RUN apk add --no-cache awake
 
 # start wake command
-CMD awake -b ${MAC}
+CMD awake ${MAC}
