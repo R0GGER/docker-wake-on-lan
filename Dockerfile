@@ -1,4 +1,4 @@
-FROM alpine:3.8
+FROM alpine:latest
 MAINTAINER R0GGER
 
 # env variable
