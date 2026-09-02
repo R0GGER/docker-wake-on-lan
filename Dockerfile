@@ -1,4 +1,4 @@
-FROM python:3.13-alpine
+FROM python:3.14-alpine
 
 LABEL org.opencontainers.image.title="docker-wake-on-lan" \
       org.opencontainers.image.description="Wake-on-LAN with a web interface, status checks, scheduling and remote shutdown" \
