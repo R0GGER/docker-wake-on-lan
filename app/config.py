@@ -31,3 +31,11 @@ def env_int(name: str, default: int) -> int:
         return int(os.environ.get(name, default))
     except (TypeError, ValueError):
         return default
+
+
+def edit_lock_seconds() -> int:
+    """Idle seconds before the layout locks. ``0`` disables auto-lock."""
+    value = env_int("EDIT_LOCK", 300)
+    if value < 0:
+        return 300
+    return value
