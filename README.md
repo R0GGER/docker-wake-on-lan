@@ -2,14 +2,17 @@
 
 Wake-on-LAN in a container, with two ways to use it:
 
-* **Web mode** — a small web UI with a device list, online/offline status, wake and shutdown buttons, scheduled wake-ups, and a REST API.
-* **CLI mode** — the original one-shot behaviour: send a magic packet and exit.
+* **Web mode** - a small web UI with a device list, online/offline status, wake and shutdown buttons, scheduled wake-ups, and a REST API.
+* **CLI mode** - the original one-shot behaviour: send a magic packet and exit.
 
 Magic packets are sent to both UDP port 9 and 7 and repeated a few times, which makes waking more reliable than a single packet.
 
 > `--net=host` is required in both modes: broadcast packets cannot cross the Docker bridge network.
 
 ## Web mode
+
+![Web UI cards view](screenshots/1_cards.png)
+![Web UI list view](screenshots/2_list.png)
 
 ```
 docker run -d --name wake-on-lan --net=host \
