@@ -7,7 +7,7 @@ on:
   pull_request:
     branches: [main, master]
   schedule:
-    # Wekelijkse rebuild zodat de image de laatste Alpine security patches bevat.
+    # Weekly rebuild so the image picks up the latest Alpine security patches.
     - cron: '17 4 * * 1'
   workflow_dispatch:
 
@@ -36,7 +36,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Secrets zijn niet beschikbaar in `if`-expressies, dus vertalen we ze naar step outputs.
+      # Secrets are not available in `if` expressions, so expose them as step outputs.
       - name: Resolve build variables
         id: vars
         env:
@@ -48,7 +48,7 @@ jobs:
             echo "dockerhub=true" >> "$GITHUB_OUTPUT"
           else
             echo "dockerhub=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::DOCKERHUB_USERNAME ontbreekt, alleen GHCR wordt gepubliceerd."
+            echo "::warning::DOCKERHUB_USERNAME is missing; publishing to GHCR only."
           fi
 
           if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
@@ -111,8 +111,8 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           annotations: ${{ steps.meta.outputs.annotations }}
-          # Bij een geplande of handmatige rebuild bewust zonder cache bouwen: het doel is
-          # juist een verse base image mét de nieuwste apk-patches.
+          # Scheduled and manual rebuilds skip the cache on purpose: the goal is
+          # a fresh base image with the latest apk patches.
           pull: true
           no-cache: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
           cache-from: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '' || 'type=gha' }}
@@ -147,7 +147,7 @@ jobs:
       security-events: write
     env:
       IMAGE_REF: ${{ needs.build.outputs.image }}@${{ needs.build.outputs.digest }}
-      # Trivy zelf via GHCR halen voorkomt de anonieme pull-limiet van Docker Hub.
+      # Pull Trivy from GHCR to avoid Docker Hub's anonymous pull limit.
       TRIVY_IMAGE: ghcr.io/aquasecurity/trivy:latest
     steps:
       - name: Log in to GitHub Container Registry
