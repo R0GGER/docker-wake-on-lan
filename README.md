@@ -2,10 +2,10 @@
 
 Wake-on-LAN in a container, with two ways to use it:
 
-* **Web mode** - a small web interface with a device list, online/offline status, wake and shutdown buttons, scheduled wake-ups and a REST API.
-* **CLI mode** - the original one-shot behaviour: send a magic packet and exit.
+* **Web mode** — a small web UI with a device list, online/offline status, wake and shutdown buttons, scheduled wake-ups, and a REST API.
+* **CLI mode** — the original one-shot behaviour: send a magic packet and exit.
 
-Magic packets are sent to both UDP port 9 and 7 and repeated a few times, which makes waking noticeably more reliable than a single packet.
+Magic packets are sent to both UDP port 9 and 7 and repeated a few times, which makes waking more reliable than a single packet.
 
 > `--net=host` is required in both modes: broadcast packets cannot cross the Docker bridge network.
 
@@ -20,7 +20,7 @@ docker run -d --name wake-on-lan --net=host \
   ghcr.io/r0gger/docker-wake-on-lan
 ```
 
-The interface is then available on `http://<host-ip>:8080`. Devices are stored in `/config/devices.json`, so mount that volume to keep them across restarts.
+The UI is then available at `http://<host-ip>:8080`. Devices are stored in `/config/devices.json`, so mount that volume to keep them across restarts.
 
 Or with Docker Compose:
 
@@ -28,38 +28,38 @@ Or with Docker Compose:
 docker compose up -d
 ```
 
-Because host networking ignores port mappings, `PORT` decides where the interface listens. The compose file uses `8099`, so the interface is on `http://<host-ip>:8099` there.
+Host networking ignores port mappings, so `PORT` decides where the UI listens. The compose file uses `8099`, which means the UI is at `http://<host-ip>:8099`.
 
-The interface follows Material 3 and has a light and a dark theme. Styling and icons are part of the image, so it loads no fonts or scripts from the internet.
+The UI uses Material 3 and includes a light and a dark theme. Styles and icons are bundled in the image, so it does not load fonts or scripts from the internet.
 
-The button in the top right corner switches between following the system setting, light and dark. That choice is stored in the browser, so it applies per device. `THEME` sets what a visitor gets before making a choice: `auto` (default), `light` or `dark`.
+The button in the top-right corner cycles between following the system setting, light, and dark. That choice is stored in the browser, so it applies per device. `THEME` sets what a visitor sees before they pick a theme: `auto` (default), `light`, or `dark`.
 
-### What the interface does
+### What the UI does
 
-* Add devices with a name, MAC address and optionally a hostname or IP.
-* Status per device: a TCP connect on the configured ports (default 22, 3389, 445 and 80), with a ping as fallback. The dot turns green when the device answers.
-* Wake with feedback: if a host is set, the interface waits until the machine actually responds and reports how long it took.
-* Shut down remotely: SSH (Linux/NAS), Windows RPC, or a Sleep-on-LAN magic packet. If a host is set, the interface waits until the machine goes offline.
+* Add devices with a name, MAC address, and optionally a hostname or IP.
+* Status per device: a TCP connect on the configured ports (default 22, 3389, 445, and 80), with ping as a fallback. The indicator turns green when the device responds.
+* Wake with feedback: if a host is set, the UI waits until the machine actually responds and reports how long it took.
+* Remote shutdown: SSH (Linux/NAS), Windows RPC, or a Sleep-on-LAN magic packet. If a host is set, the UI waits until the machine goes offline.
 * Schedule a wake-up with a cron expression, for example `0 7 * * 1-5` for every weekday at 07:00.
 * Quick wake for a MAC address you do not want to save.
 
 ## CLI mode
 
-Exactly as before, without a UI:
+The same as before, without a UI:
 
 ```
 docker run --rm --name wake-on-lan --net=host -e MAC='11:11:11:11:11:11' ghcr.io/r0gger/docker-wake-on-lan
 ```
 
-Multiple MAC addresses (space or comma separated):
+Multiple MAC addresses (space- or comma-separated):
 
 ```
 docker run --rm --net=host -e MAC='11:11:11:11:11:11 22:22:22:22:22:22' ghcr.io/r0gger/docker-wake-on-lan
 ```
 
-MAC addresses may be written as `11:22:33:44:55:66`, `11-22-33-44-55-66` or `112233445566`. An invalid address stops the container with exit code 2 instead of silently doing nothing.
+MAC addresses may be written as `11:22:33:44:55:66`, `11-22-33-44-55-66`, or `112233445566`. An invalid address stops the container with exit code 2 instead of silently doing nothing.
 
-Wait until the machine is really up (useful in scripts, exit code 1 if it stays offline):
+Wait until the machine is actually up (useful in scripts; exit code 1 if it stays offline):
 
 ```
 docker run --rm --net=host \
@@ -69,7 +69,7 @@ docker run --rm --net=host \
   ghcr.io/r0gger/docker-wake-on-lan
 ```
 
-Arguments work too and override the environment variables:
+Command-line arguments work too and override the environment variables:
 
 ```
 docker run --rm --net=host ghcr.io/r0gger/docker-wake-on-lan 11:22:33:44:55:66 -b 192.168.1.255 -r 5
@@ -79,29 +79,29 @@ docker run --rm --net=host ghcr.io/r0gger/docker-wake-on-lan 11:22:33:44:55:66 -
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `MODE` | `auto` | `web`, `cli` or `auto` (CLI when `MAC` is set, otherwise web) |
+| `MODE` | `auto` | `web`, `cli`, or `auto` (CLI when `MAC` is set, otherwise web) |
 | `MAC` | - | one or more MAC addresses for CLI mode |
 | `BROADCAST` | `255.255.255.255` | broadcast address, e.g. `192.168.1.255` |
 | `REPEAT` | `3` | how often each packet is sent |
 | `WAIT_HOST` | - | host to poll after waking (CLI mode) |
 | `WAIT_TIMEOUT` | `0` | seconds to wait for that host |
-| `OPTIONS` | - | legacy `awake` options, `-p` and `-b` are still honoured |
-| `PORT` | `8080` | port of the web interface |
-| `HOST` | `0.0.0.0` | listen address of the web interface |
+| `OPTIONS` | - | legacy `awake` options; `-p` and `-b` are still honoured |
+| `PORT` | `8080` | web UI port |
+| `HOST` | `0.0.0.0` | web UI listen address |
 | `CONFIG_DIR` | `/config` | where `devices.json` and the session key are stored |
-| `THEME` | `auto` | default theme: `auto`, `light` or `dark` |
+| `THEME` | `auto` | default theme: `auto`, `light`, or `dark` |
 | `AUTH_ENABLED` | `true` | set to `false` to run without a login |
-| `WEBUI_PASSWORD` | - | password for the web interface |
+| `WEBUI_PASSWORD` | - | password for the web UI |
 | `API_KEY` | - | token for the REST API |
-| `SECRET_KEY` | generated | Flask session key, generated and stored in `/config` if unset |
+| `SECRET_KEY` | generated | Flask session key; generated and stored in `/config` if unset |
 | `TZ` | `UTC` | timezone used by the schedules |
-| `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING` or `ERROR` |
+| `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, or `ERROR` |
 
 The login screen only appears when `WEBUI_PASSWORD` is set:
 
-* Neither `WEBUI_PASSWORD` nor `API_KEY` set: no login, the interface is open to everyone on the network and a warning is logged at startup.
-* `WEBUI_PASSWORD` set: login screen, and the API additionally accepts `API_KEY` if you set one.
-* Only `API_KEY` set: no login form, since there is no password to enter. The API stays protected and the browser shows a short explanation.
+* Neither `WEBUI_PASSWORD` nor `API_KEY` set: no login. The UI is open to everyone on the network, and a warning is logged at startup.
+* `WEBUI_PASSWORD` set: login screen. The API also accepts `API_KEY` if you set one.
+* Only `API_KEY` set: no login form, because there is no password to enter. The API stays protected and the browser shows a short explanation.
 
 Changing these variables requires recreating the container, not just restarting it:
 
@@ -142,8 +142,8 @@ curl -X POST -H "X-API-Key: $API_KEY" -H 'Content-Type: application/json' \
 | `POST` | `/api/devices/<id>/wake` | wake, with `wait` and `timeout` |
 | `POST` | `/api/devices/<id>/shutdown` | shut down, with `wait` and `timeout` |
 | `POST` | `/api/wake` | wake a MAC address without saving it |
-| `GET` | `/api/status` | status only, cheap to poll |
-| `GET` | `/healthz` | health check, no authentication |
+| `GET` | `/api/status` | status only; cheap to poll |
+| `GET` | `/healthz` | health check; no authentication |
 
 ### Home Assistant example
 
@@ -169,7 +169,7 @@ Configure the method on each device. The password is stored in `devices.json` an
 
 **Windows (RPC)** uses `net rpc shutdown` over SMB (port 445). Use an administrator account, allow File and Printer Sharing through the firewall, and for a local account set `LocalAccountTokenFilterPolicy` to `1`.
 
-**Sleep-on-LAN** sends a magic packet with the MAC bytes reversed. That requires [Sleep-on-LAN](https://github.com/SR-G/sleep-on-lan) on the target; no credentials in this container.
+**Sleep-on-LAN** sends a magic packet with the MAC bytes reversed. That requires [Sleep-on-LAN](https://github.com/SR-G/sleep-on-lan) on the target; this container does not need credentials.
 
 ## Notes
 
