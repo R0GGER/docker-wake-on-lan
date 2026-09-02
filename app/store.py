@@ -29,6 +29,7 @@ class DeviceStore:
         self.path = path
         self._lock = threading.RLock()
         self._devices: list[dict[str, Any]] = []
+        self._groups: list[dict[str, Any]] = []
         self._listeners: list[Callable[[], None]] = []
         self._load()
 
@@ -44,21 +45,32 @@ class DeviceStore:
 
     def _load(self) -> None:
         with self._lock:
+            self._devices = []
+            self._groups = []
             if not os.path.exists(self.path):
-                self._devices = []
                 return
             try:
                 with open(self.path, encoding="utf-8") as handle:
                     data = json.load(handle)
             except (OSError, json.JSONDecodeError):
                 log.exception("Could not read %s, starting with an empty list", self.path)
-                self._devices = []
                 return
+
+            raw_groups = data.get("groups", []) if isinstance(data, dict) else []
+            self._groups = _parse_groups(raw_groups)
+            known = {group["id"] for group in self._groups}
 
             devices = data.get("devices", data) if isinstance(data, dict) else data
             if not isinstance(devices, list):
                 devices = []
-            self._devices = [d for d in devices if isinstance(d, dict) and d.get("mac")]
+            loaded = []
+            for item in devices:
+                if not isinstance(item, dict) or not item.get("mac"):
+                    continue
+                group_id = str(item.get("group_id") or "").strip()
+                item["group_id"] = group_id if group_id in known else ""
+                loaded.append(item)
+            self._devices = loaded
 
     def _save(self) -> None:
         with self._lock:
@@ -73,7 +85,11 @@ class DeviceStore:
             )
             try:
                 with handle:
-                    json.dump({"devices": self._devices}, handle, indent=2)
+                    json.dump(
+                        {"groups": self._groups, "devices": self._devices},
+                        handle,
+                        indent=2,
+                    )
                     handle.flush()
                     os.fsync(handle.fileno())
                 os.replace(handle.name, self.path)
@@ -81,6 +97,134 @@ class DeviceStore:
                 with contextlib.suppress(OSError):
                     os.unlink(handle.name)
                 raise
+
+    def _resolve_group_id(self, group_id: Any) -> str:
+        gid = str(group_id or "").strip()
+        if gid and any(group["id"] == gid for group in self._groups):
+            return gid
+        return ""
+
+    def _assert_unique_group_name(self, name: str, exclude_id: str | None = None) -> None:
+        needle = name.casefold()
+        for group in self._groups:
+            if group["id"] != exclude_id and group["name"].casefold() == needle:
+                raise ValidationError(f"A group named {name!r} already exists")
+
+    def list_groups(self) -> list[dict[str, Any]]:
+        with self._lock:
+            return [dict(group) for group in self._groups]
+
+    def get_group(self, group_id: str) -> dict[str, Any] | None:
+        with self._lock:
+            for group in self._groups:
+                if group["id"] == group_id:
+                    return dict(group)
+        return None
+
+    def add_group(self, payload: dict[str, Any]) -> dict[str, Any]:
+        group = validate_group(payload)
+        with self._lock:
+            self._assert_unique_group_name(group["name"])
+            group["id"] = uuid.uuid4().hex[:12]
+            self._groups.append(group)
+            self._save()
+        self._notify()
+        return group
+
+    def update_group(self, group_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        with self._lock:
+            for index, existing in enumerate(self._groups):
+                if existing["id"] != group_id:
+                    continue
+                group = validate_group({**existing, **payload})
+                group["id"] = group_id
+                self._assert_unique_group_name(group["name"], exclude_id=group_id)
+                self._groups[index] = group
+                self._save()
+                break
+            else:
+                raise KeyError(group_id)
+        self._notify()
+        return group
+
+    def delete_group(self, group_id: str) -> None:
+        with self._lock:
+            before = len(self._groups)
+            self._groups = [group for group in self._groups if group["id"] != group_id]
+            if len(self._groups) == before:
+                raise KeyError(group_id)
+            for device in self._devices:
+                if device.get("group_id") == group_id:
+                    device["group_id"] = ""
+            self._save()
+        self._notify()
+
+    def reorder_groups(self, ids: list[str]) -> list[dict[str, Any]]:
+        if not isinstance(ids, list):
+            raise ValidationError("ids must be a list")
+        with self._lock:
+            by_id = {group["id"]: group for group in self._groups}
+            ordered: list[dict[str, Any]] = []
+            seen: set[str] = set()
+            for group_id in ids:
+                gid = str(group_id or "").strip()
+                group = by_id.get(gid)
+                if group is None or gid in seen:
+                    continue
+                ordered.append(group)
+                seen.add(gid)
+            for group in self._groups:
+                if group["id"] not in seen:
+                    ordered.append(group)
+            self._groups = ordered
+            self._save()
+        self._notify()
+        return self.list_groups()
+
+    def devices_in_group(self, group_id: str) -> list[dict[str, Any]]:
+        gid = str(group_id or "").strip()
+        with self._lock:
+            return [
+                dict(device)
+                for device in self._devices
+                if (device.get("group_id") or "") == gid
+            ]
+
+    def move_device(
+        self, device_id: str, group_id: Any, index: int | None = None
+    ) -> dict[str, Any]:
+        requested = str(group_id or "").strip()
+        with self._lock:
+            if requested and not any(group["id"] == requested for group in self._groups):
+                raise ValidationError("Unknown group")
+            found = None
+            for position, device in enumerate(self._devices):
+                if device["id"] == device_id:
+                    found = self._devices.pop(position)
+                    break
+            if found is None:
+                raise KeyError(device_id)
+
+            found["group_id"] = requested
+            peers = [
+                i
+                for i, device in enumerate(self._devices)
+                if (device.get("group_id") or "") == requested
+            ]
+            if index is None:
+                dest = len(peers)
+            else:
+                dest = max(0, min(int(index), len(peers)))
+            if not peers:
+                insert_at = len(self._devices)
+            elif dest >= len(peers):
+                insert_at = peers[-1] + 1
+            else:
+                insert_at = peers[dest]
+            self._devices.insert(insert_at, found)
+            self._save()
+        self._notify()
+        return dict(found)
 
     def list(self) -> list[dict[str, Any]]:
         with self._lock:
@@ -97,6 +241,7 @@ class DeviceStore:
         device = validate_device(payload)
         with self._lock:
             device["id"] = uuid.uuid4().hex[:12]
+            device["group_id"] = self._resolve_group_id(device.get("group_id"))
             if any(d["mac"] == device["mac"] for d in self._devices):
                 raise ValidationError(f"A device with MAC {device['mac']} already exists")
             self._devices.append(device)
@@ -114,6 +259,7 @@ class DeviceStore:
                     merged["shutdown_password"] = existing.get("shutdown_password", "")
                 device = validate_device(merged)
                 device["id"] = device_id
+                device["group_id"] = self._resolve_group_id(device.get("group_id"))
                 if any(
                     d["mac"] == device["mac"] and d["id"] != device_id for d in self._devices
                 ):
@@ -213,7 +359,36 @@ def validate_device(payload: dict[str, Any]) -> dict[str, Any]:
         "shutdown_user": shutdown_user,
         "shutdown_password": shutdown_password,
         "shutdown_command": shutdown_command,
+        "group_id": str(payload.get("group_id") or "").strip(),
     }
+
+
+def validate_group(payload: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        raise ValidationError("Group must be an object")
+    name = str(payload.get("name") or "").strip()
+    if not name:
+        raise ValidationError("Group name is required")
+    if len(name) > 64:
+        raise ValidationError("Group name may not be longer than 64 characters")
+    return {"id": str(payload.get("id") or ""), "name": name}
+
+
+def _parse_groups(raw: Any) -> list[dict[str, Any]]:
+    if not isinstance(raw, list):
+        return []
+    groups: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        group_id = str(item.get("id") or "").strip()
+        name = str(item.get("name") or "").strip()
+        if not group_id or not name or group_id in seen:
+            continue
+        seen.add(group_id)
+        groups.append({"id": group_id, "name": name[:64]})
+    return groups
 
 
 def export_device(device: dict[str, Any]) -> dict[str, Any]:

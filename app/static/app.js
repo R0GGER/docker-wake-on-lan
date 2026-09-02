@@ -32,6 +32,19 @@ const ICONS = {
     "M12 3a9 9 0 1 0 9 9c0-.46-.04-.92-.1-1.36a5.389 5.389 0 0 1-4.4 2.26 5.4 5.4 0 0 1-2.26-10.3c-.44-.06-.9-.1-1.36-.1z",
   theme_auto:
     "M12 22c5.52 0 10-4.48 10-10S17.52 2 12 2 2 6.48 2 12s4.48 10 10 10zm1-17.93c3.94.49 7 3.85 7 7.93s-3.05 7.44-7 7.93V4.07z",
+  folder:
+    "M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z",
+  expand_more: "M16.59 8.59 12 13.17 7.41 8.59 6 10l6 6 6-6z",
+  drag_indicator:
+    "M11 18c0 1.1-.9 2-2 2s-2-.9-2-2 .9-2 2-2 2 .9 2 2zm-2-8c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0-6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm6 4c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z",
+  checklist:
+    "M22 7h-9v2h9V7zm0 8h-9v2h9v-2zM5.54 11 2 7.46l1.41-1.41 2.12 2.12 4.24-4.24L11.17 5.34 5.54 11zm0 8L2 15.46l1.41-1.41 2.12 2.12 4.24-4.24 1.41 1.41L5.54 19z",
+  close:
+    "M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z",
+  grid_view:
+    "M3 3v8h8V3H3zm6 6H5V5h4v4zm-6 4v8h8v-8H3zm6 6H5v-4h4v4zm4-16v8h8V3h-8zm6 6h-4V5h4v4zm-6 4v8h8v-8h-8zm6 6h-4v-4h4v4z",
+  view_list:
+    "M3 14h4v-4H3v4zm0 5h4v-4H3v4zM3 9h4V5H3v4zm5 5h13v-4H8v4zm0 5h13v-4H8v4zM8 5v4h13V5H8z",
 };
 
 const THEMES = ["auto", "light", "dark"];
@@ -68,12 +81,32 @@ const el = {
   bannerText: document.getElementById("banner-text"),
   refresh: document.getElementById("refresh"),
   addDevice: document.getElementById("add-device"),
+  addGroup: document.getElementById("add-group"),
+  viewCards: document.getElementById("view-cards"),
+  viewList: document.getElementById("view-list"),
+  pageEdit: document.getElementById("page-edit"),
+  pageSave: document.getElementById("page-save"),
+  editCountdown: document.getElementById("edit-countdown"),
+  selectMode: document.getElementById("select-mode"),
+  selectionBar: document.getElementById("selection-bar"),
+  selectionCount: document.getElementById("selection-count"),
+  selectionAll: document.getElementById("selection-all"),
+  selectionWake: document.getElementById("selection-wake"),
+  selectionShutdown: document.getElementById("selection-shutdown"),
+  selectionDone: document.getElementById("selection-done"),
   logout: document.getElementById("logout"),
   dialog: document.getElementById("device-dialog"),
   form: document.getElementById("device-form"),
   dialogTitle: document.getElementById("dialog-title"),
   dialogError: document.getElementById("dialog-error"),
   dialogCancel: document.getElementById("dialog-cancel"),
+  groupField: document.getElementById("group-field"),
+  groupSelect: document.getElementById("device-group"),
+  groupDialog: document.getElementById("group-dialog"),
+  groupForm: document.getElementById("group-form"),
+  groupDialogTitle: document.getElementById("group-dialog-title"),
+  groupDialogError: document.getElementById("group-dialog-error"),
+  groupDialogCancel: document.getElementById("group-dialog-cancel"),
   shutdownMethod: document.getElementById("shutdown-method"),
   shutdownHint: document.getElementById("shutdown-hint"),
   shutdownAuth: document.getElementById("shutdown-auth"),
@@ -90,9 +123,162 @@ const el = {
 };
 
 let devices = [];
+let groups = [];
 let editingId = null;
+let editingGroupId = null;
 let timer = null;
 let passwordLogin = true;
+let dragDeviceId = null;
+let dragGroupId = null;
+let selecting = false;
+const selectedIds = new Set();
+let pageEditing = false;
+let editRemainingMs = 0;
+let editTickAt = 0;
+let editBusy = false;
+let editTickTimer = null;
+let collapsedGroups = readCollapsed();
+let deviceView = readView();
+
+const UNGROUPED_KEY = "__ungrouped__";
+
+function readCollapsed() {
+  try {
+    const raw = JSON.parse(localStorage.getItem("wol-collapsed-groups") || "{}");
+    return raw && typeof raw === "object" ? raw : {};
+  } catch (err) {
+    return {};
+  }
+}
+
+function writeCollapsed() {
+  try {
+    localStorage.setItem("wol-collapsed-groups", JSON.stringify(collapsedGroups));
+  } catch (err) {
+    /* storage blocked; collapse then lasts for this page view only */
+  }
+}
+
+function readView() {
+  try {
+    return localStorage.getItem("wol-view") === "list" ? "list" : "cards";
+  } catch (err) {
+    return "cards";
+  }
+}
+
+function writeView(view) {
+  try {
+    localStorage.setItem("wol-view", view);
+  } catch (err) {
+    /* storage blocked; the view then lasts for this page view only */
+  }
+}
+
+function applyView() {
+  const list = deviceView === "list";
+  el.app.classList.toggle("is-list-view", list);
+  if (el.viewCards) el.viewCards.setAttribute("aria-pressed", String(!list));
+  if (el.viewList) el.viewList.setAttribute("aria-pressed", String(list));
+}
+
+function setView(view) {
+  deviceView = view === "list" ? "list" : "cards";
+  writeView(deviceView);
+  applyView();
+}
+
+const EDIT_LOCK_DEFAULT_MS = 300000;
+let EDIT_LOCK_MS = EDIT_LOCK_DEFAULT_MS;
+const LAYOUT_ACTIONS = new Set([
+  "edit",
+  "delete",
+  "add-to-group",
+  "edit-group",
+  "delete-group",
+]);
+
+function layoutDialogOpen() {
+  return Boolean(el.dialog?.open || el.groupDialog?.open);
+}
+
+function formatLockCountdown(ms) {
+  const secs = Math.max(0, Math.ceil(ms / 1000));
+  const minutes = Math.floor(secs / 60);
+  const rest = String(secs % 60).padStart(2, "0");
+  return `${minutes}:${rest}`;
+}
+
+function applyEditLockSeconds(seconds) {
+  const secs = Number(seconds);
+  if (!Number.isFinite(secs) || secs < 0) {
+    EDIT_LOCK_MS = EDIT_LOCK_DEFAULT_MS;
+    return;
+  }
+  EDIT_LOCK_MS = Math.round(secs) * 1000;
+}
+
+function touchEditTimer() {
+  if (!pageEditing) return;
+  editBusy = true;
+  editTickAt = Date.now();
+  updateEditCountdown();
+}
+
+function applyEditMode() {
+  el.app.classList.toggle("is-editing", pageEditing);
+  if (el.pageEdit) el.pageEdit.hidden = pageEditing;
+  if (el.pageSave) el.pageSave.hidden = !pageEditing;
+  if (el.editCountdown) el.editCountdown.hidden = !pageEditing || EDIT_LOCK_MS <= 0;
+  for (const card of el.devices.querySelectorAll(".device-card")) {
+    const inSection = Boolean(card.closest(".device-section"));
+    card.draggable = pageEditing && !selecting && inSection;
+  }
+}
+
+function startPageEdit() {
+  if (selecting) setSelecting(false);
+  pageEditing = true;
+  editRemainingMs = EDIT_LOCK_MS;
+  editTickAt = Date.now();
+  if (editTickTimer) clearInterval(editTickTimer);
+  editTickTimer = EDIT_LOCK_MS > 0 ? setInterval(updateEditCountdown, 250) : null;
+  applyEditMode();
+  if (EDIT_LOCK_MS > 0) updateEditCountdown();
+}
+
+function lockPage({ auto = false } = {}) {
+  if (!pageEditing) return;
+  pageEditing = false;
+  if (editTickTimer) {
+    clearInterval(editTickTimer);
+    editTickTimer = null;
+  }
+  if (el.dialog?.open) el.dialog.close();
+  if (el.groupDialog?.open) el.groupDialog.close();
+  applyEditMode();
+  snackbar(auto ? "Saved and locked" : "Saved", "ok");
+}
+
+function updateEditCountdown() {
+  if (!pageEditing || !el.editCountdown || EDIT_LOCK_MS <= 0) return;
+  const now = Date.now();
+  const busy = editBusy || layoutDialogOpen();
+  if (busy) {
+    editTickAt = now;
+    editBusy = false;
+  } else {
+    editRemainingMs -= now - editTickAt;
+    editTickAt = now;
+  }
+  if (editRemainingMs <= 0) {
+    lockPage({ auto: true });
+    return;
+  }
+  el.editCountdown.textContent = layoutDialogOpen()
+    ? "Auto-lock paused"
+    : `Auto-lock in ${formatLockCountdown(editRemainingMs)}`;
+}
 
 async function api(path, options = {}) {
   const response = await fetch(path, {
@@ -252,70 +438,350 @@ function applyCardStatus(card, device) {
   }
 }
 
+function deviceGroupId(device) {
+  const gid = device?.group_id || "";
+  return gid && groups.some((group) => group.id === gid) ? gid : "";
+}
+
+function devicesInGroup(groupId) {
+  return devices.filter((device) => deviceGroupId(device) === groupId);
+}
+
+function collapseKey(groupId) {
+  return groupId || UNGROUPED_KEY;
+}
+
+function isCollapsed(groupId) {
+  return Boolean(collapsedGroups[collapseKey(groupId)]);
+}
+
+function setCollapsed(groupId, collapsed) {
+  const key = collapseKey(groupId);
+  if (collapsed) collapsedGroups[key] = true;
+  else delete collapsedGroups[key];
+  writeCollapsed();
+}
+
+function fillGroupSelect(selected) {
+  if (!el.groupSelect || !el.groupField) return;
+  el.groupField.hidden = groups.length === 0;
+  el.groupSelect.replaceChildren();
+  const none = document.createElement("option");
+  none.value = "";
+  none.textContent = "Ungrouped";
+  el.groupSelect.append(none);
+  for (const group of groups) {
+    const option = document.createElement("option");
+    option.value = group.id;
+    option.textContent = group.name;
+    el.groupSelect.append(option);
+  }
+  el.groupSelect.value = selected || "";
+}
+
+function createCard(device, { draggable = false } = {}) {
+  const card = document.createElement("article");
+  card.className = `card device-card${device.online === true ? " is-online" : ""}${
+    device.monitored && device.online === false ? " is-offline" : ""
+  }${device.enabled ? "" : " disabled"}`;
+  card.dataset.id = device.id;
+
+  const chipClass = chipKind(device);
+  const scheduleRow = device.schedule
+    ? `<div class="row body-small">${icon("schedule", 16)}
+         <code>${escapeHtml(device.schedule)}</code>${
+        device.next_run ? ` &middot; next ${escapeHtml(formatDate(device.next_run))}` : ""
+      }</div>`
+    : "";
+
+  const { disabled: shutdownDisabled, title: shutdownTitle } = shutdownState(device);
+
+  card.innerHTML = `
+    <div class="device-head">
+      <label class="device-check">
+        <input type="checkbox" data-role="select">
+        <span class="check-box">${icon("check", 16)}</span>
+      </label>
+      <span class="device-avatar">${icon("power", 20)}</span>
+      <div class="device-titles">
+        <h2 class="title-medium">${escapeHtml(device.name)}</h2>
+        <p class="body-small on-surface-variant"><code>${escapeHtml(device.mac)}</code></p>
+      </div>
+      <span class="chip ${chipClass}"><span class="dot"></span>${statusLabel(device)}</span>
+    </div>
+
+    <div class="device-meta">
+      ${
+        device.host
+          ? `<div class="row body-small">${icon("devices", 16)}${escapeHtml(device.host)}</div>`
+          : `<div class="row body-small">${icon("devices", 16)}No host set</div>`
+      }
+      ${scheduleRow}
+    </div>
+
+    <div class="device-actions">
+      <button class="btn filled has-icon" data-action="wake" aria-label="Wake">
+        <span class="btn-icon">${icon("bolt", 18)}</span>
+        <span class="btn-label">Wake</span>
+      </button>
+      <button class="btn tonal danger has-icon" data-action="shutdown"${
+        shutdownDisabled ? " disabled" : ""
+      } title="${escapeHtml(shutdownTitle)}" aria-label="${escapeHtml(shutdownTitle)}">
+        <span class="btn-icon">${icon("power", 18)}</span>
+        <span class="btn-label">Shutdown</span>
+      </button>
+      <div class="device-action-icons">
+        <button class="icon-btn" data-action="edit" aria-label="Edit" title="Edit">
+          ${icon("edit", 20)}
+        </button>
+        <button class="icon-btn danger" data-action="delete" aria-label="Delete" title="Delete">
+          ${icon("delete", 20)}
+        </button>
+      </div>
+    </div>
+
+    <p class="result body-small" data-role="result"></p>
+  `;
+
+  if (draggable) {
+    card.draggable = true;
+    card.addEventListener("dragstart", (event) => {
+      if (!pageEditing || selecting || event.target.closest("button, label")) {
+        event.preventDefault();
+        return;
+      }
+      dragDeviceId = device.id;
+      dragGroupId = null;
+      card.classList.add("is-dragging");
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("text/plain", device.id);
+    });
+    card.addEventListener("dragend", () => {
+      card.classList.remove("is-dragging");
+      dragDeviceId = null;
+      clearDropTargets();
+    });
+  }
+
+  return card;
+}
+
+function createSection(groupId, name, sectionDevices, { managed }) {
+  const section = document.createElement("section");
+  section.className = "device-section";
+  section.dataset.groupId = groupId;
+  const collapsed = isCollapsed(groupId);
+  if (collapsed) section.classList.add("is-collapsed");
+
+  const canShutdown = sectionDevices.some((device) => device.can_shutdown);
+  const header = document.createElement("div");
+  header.className = "section-header";
+  header.innerHTML = `
+    ${
+      managed
+        ? `<span class="section-drag" draggable="true" title="Reorder group" aria-label="Reorder group">${icon("drag_indicator", 20)}</span>`
+        : ""
+    }
+    <button type="button" class="icon-btn section-toggle" data-action="toggle" aria-expanded="${!collapsed}" aria-label="${collapsed ? "Expand" : "Collapse"}">
+      ${icon("expand_more", 20)}
+    </button>
+    <label class="section-check" title="Select group">
+      <input type="checkbox" data-action="select-group">
+      <span class="check-box">${icon("check", 16)}</span>
+    </label>
+    <h2 class="title-medium section-title">${escapeHtml(name)}</h2>
+    <span class="body-small on-surface-variant section-count">${sectionDevices.length}</span>
+    <div class="section-actions">
+      <button type="button" class="btn tonal has-icon" data-action="wake-group"${
+        sectionDevices.length ? "" : " disabled"
+      }>
+        <span class="btn-icon">${icon("bolt", 18)}</span> Wake
+      </button>
+      <button type="button" class="btn tonal danger has-icon" data-action="shutdown-group"${
+        canShutdown ? "" : " disabled"
+      }>
+        <span class="btn-icon">${icon("power", 18)}</span> Shutdown
+      </button>
+      ${
+        managed
+          ? `<button type="button" class="icon-btn" data-action="add-to-group" aria-label="Add device" title="Add device">${icon("add", 20)}</button>
+        <button type="button" class="icon-btn" data-action="edit-group" aria-label="Rename group" title="Rename">${icon("edit", 20)}</button>
+        <button type="button" class="icon-btn danger" data-action="delete-group" aria-label="Delete group" title="Delete">${icon("delete", 20)}</button>`
+          : ""
+      }
+    </div>
+  `;
+
+  const handle = header.querySelector(".section-drag");
+  if (handle) {
+    handle.addEventListener("dragstart", (event) => {
+      if (!pageEditing || selecting) {
+        event.preventDefault();
+        return;
+      }
+      dragGroupId = groupId;
+      dragDeviceId = null;
+      section.classList.add("is-dragging");
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("text/plain", groupId);
+    });
+    handle.addEventListener("dragend", () => {
+      section.classList.remove("is-dragging");
+      dragGroupId = null;
+      clearDropTargets();
+    });
+  }
+
+  const grid = document.createElement("div");
+  grid.className = "device-grid";
+  grid.hidden = collapsed;
+  if (!sectionDevices.length) grid.classList.add("is-empty");
+  for (const device of sectionDevices) {
+    grid.append(createCard(device, { draggable: true }));
+  }
+
+  section.append(header, grid);
+  return section;
+}
+
 function renderDevices() {
   el.devices.replaceChildren();
-  el.empty.hidden = devices.length > 0;
+  const hasGroups = groups.length > 0;
+  el.empty.hidden = devices.length > 0 || hasGroups;
+  el.devices.className = hasGroups ? "device-list" : "device-grid";
 
-  for (const device of devices) {
-    const card = document.createElement("article");
-    card.className = `card device-card${device.online === true ? " is-online" : ""}${
-      device.monitored && device.online === false ? " is-offline" : ""
-    }${device.enabled ? "" : " disabled"}`;
-    card.dataset.id = device.id;
-
-    const chipClass = chipKind(device);
-    const scheduleRow = device.schedule
-      ? `<div class="row body-small">${icon("schedule", 16)}
-           <code>${escapeHtml(device.schedule)}</code>${
-          device.next_run ? ` &middot; next ${escapeHtml(formatDate(device.next_run))}` : ""
-        }</div>`
-      : "";
-
-    const { disabled: shutdownDisabled, title: shutdownTitle } = shutdownState(device);
-
-    card.innerHTML = `
-      <div class="device-head">
-        <span class="device-avatar">${icon("power", 20)}</span>
-        <div class="device-titles">
-          <h2 class="title-medium">${escapeHtml(device.name)}</h2>
-          <p class="body-small on-surface-variant"><code>${escapeHtml(device.mac)}</code></p>
-        </div>
-        <span class="chip ${chipClass}"><span class="dot"></span>${statusLabel(device)}</span>
-      </div>
-
-      <div class="device-meta">
-        ${
-          device.host
-            ? `<div class="row body-small">${icon("devices", 16)}${escapeHtml(device.host)}</div>`
-            : `<div class="row body-small">${icon("devices", 16)}No host set</div>`
-        }
-        ${scheduleRow}
-      </div>
-
-      <div class="device-actions">
-        <button class="btn filled has-icon" data-action="wake">
-          <span class="btn-icon">${icon("bolt", 18)}</span> Wake
-        </button>
-        <button class="btn tonal danger has-icon" data-action="shutdown"${
-          shutdownDisabled ? " disabled" : ""
-        } title="${escapeHtml(shutdownTitle)}" aria-label="${escapeHtml(shutdownTitle)}">
-          <span class="btn-icon">${icon("power", 18)}</span> Shutdown
-        </button>
-        <div class="device-action-icons">
-          <button class="icon-btn" data-action="edit" aria-label="Edit" title="Edit">
-            ${icon("edit", 20)}
-          </button>
-          <button class="icon-btn danger" data-action="delete" aria-label="Delete" title="Delete">
-            ${icon("delete", 20)}
-          </button>
-        </div>
-      </div>
-
-      <p class="result body-small" data-role="result"></p>
-    `;
-
-    el.devices.append(card);
+  if (!hasGroups) {
+    for (const device of devices) {
+      el.devices.append(createCard(device));
+    }
+    applySelection();
+    applyEditMode();
+    return;
   }
+
+  for (const group of groups) {
+    el.devices.append(
+      createSection(group.id, group.name, devicesInGroup(group.id), { managed: true })
+    );
+  }
+  const ungrouped = devicesInGroup("");
+  if (ungrouped.length) {
+    el.devices.append(createSection("", "Ungrouped", ungrouped, { managed: false }));
+  }
+  applySelection();
+  applyEditMode();
+}
+
+function selectedDevices() {
+  return devices.filter((device) => selectedIds.has(device.id));
+}
+
+function setSelecting(on) {
+  selecting = Boolean(on) && devices.length > 0;
+  if (!selecting) selectedIds.clear();
+  el.app.classList.toggle("is-selecting", selecting);
+  if (el.selectMode) {
+    el.selectMode.setAttribute("aria-pressed", String(selecting));
+    el.selectMode.classList.toggle("filled", selecting);
+    el.selectMode.classList.toggle("tonal", !selecting);
+    el.selectMode.disabled = devices.length === 0;
+  }
+  applySelection();
+  applyEditMode();
+}
+
+function toggleSelect(deviceId, force) {
+  if (force === true) selectedIds.add(deviceId);
+  else if (force === false) selectedIds.delete(deviceId);
+  else if (selectedIds.has(deviceId)) selectedIds.delete(deviceId);
+  else selectedIds.add(deviceId);
+  applySelection();
+}
+
+function applySelection() {
+  const known = new Set(devices.map((device) => device.id));
+  for (const id of [...selectedIds]) {
+    if (!known.has(id)) selectedIds.delete(id);
+  }
+  if (selecting && devices.length === 0) {
+    selecting = false;
+    selectedIds.clear();
+  }
+  el.app.classList.toggle("is-selecting", selecting);
+  if (el.selectMode) {
+    el.selectMode.setAttribute("aria-pressed", String(selecting));
+    el.selectMode.classList.toggle("filled", selecting);
+    el.selectMode.classList.toggle("tonal", !selecting);
+    el.selectMode.disabled = devices.length === 0;
+  }
+
+  for (const card of el.devices.querySelectorAll(".device-card")) {
+    const on = selectedIds.has(card.dataset.id);
+    card.classList.toggle("is-selected", on);
+    const input = card.querySelector('input[data-role="select"]');
+    if (input) input.checked = on;
+  }
+
+  for (const section of el.devices.querySelectorAll(".device-section")) {
+    const members = devicesInGroup(section.dataset.groupId || "");
+    const input = section.querySelector('input[data-action="select-group"]');
+    if (!input) continue;
+    const count = members.filter((device) => selectedIds.has(device.id)).length;
+    input.checked = members.length > 0 && count === members.length;
+    input.indeterminate = count > 0 && count < members.length;
+  }
+
+  const chosen = selectedDevices();
+  if (el.selectionBar) el.selectionBar.hidden = !selecting;
+  if (el.selectionCount) {
+    const n = chosen.length;
+    el.selectionCount.textContent = `${n} selected`;
+  }
+  if (el.selectionWake) el.selectionWake.disabled = chosen.length === 0;
+  if (el.selectionShutdown) {
+    el.selectionShutdown.disabled = !chosen.some((device) => device.can_shutdown);
+  }
+  if (el.selectionAll) {
+    const allOn = devices.length > 0 && chosen.length === devices.length;
+    el.selectionAll.textContent = allOn ? "Clear all" : "Select all";
+  }
+}
+
+async function wakeMany(list) {
+  let woke = 0;
+  for (const device of list) {
+    try {
+      await api(`/api/devices/${device.id}/wake`, { method: "POST", body: "{}" });
+      woke += 1;
+    } catch (err) {
+      /* keep going so the rest of the selection still wakes */
+    }
+  }
+  snackbar(`Woke ${woke} ${woke === 1 ? "device" : "devices"}`, "ok");
+  crow();
+  await refreshStatus();
+}
+
+async function shutdownMany(list) {
+  let shut = 0;
+  let skipped = 0;
+  for (const device of list) {
+    if (!device.can_shutdown) {
+      skipped += 1;
+      continue;
+    }
+    try {
+      await api(`/api/devices/${device.id}/shutdown`, { method: "POST", body: "{}" });
+      shut += 1;
+    } catch (err) {
+      /* keep going so the rest of the selection still shuts down */
+    }
+  }
+  const parts = [`Shut down ${shut}`];
+  if (skipped) parts.push(`skipped ${skipped}`);
+  snackbar(parts.join(", "), "ok");
+  doze();
+  await refreshStatus();
 }
 
 function escapeHtml(value) {
@@ -342,6 +808,7 @@ async function loadDevices() {
   try {
     const data = await api("/api/devices?probe=0");
     devices = data.devices;
+    groups = Array.isArray(data.groups) ? data.groups : [];
     showBanner("");
     renderDevices();
     refreshStatus();
@@ -505,7 +972,8 @@ function renderDevicesSoon() {
   renderTimer = setTimeout(() => refreshStatus(), 2000);
 }
 
-function openDialog(device) {
+function openDialog(device, options = {}) {
+  if (!pageEditing) return;
   editingId = device ? device.id : null;
   el.dialogTitle.textContent = device ? "Edit device" : "Add device";
   el.dialogError.hidden = true;
@@ -523,10 +991,47 @@ function openDialog(device) {
   form.shutdown_password.value = "";
   form.shutdown_command.value = device?.shutdown_command ?? "";
   form.enabled.checked = device ? device.enabled : true;
+  fillGroupSelect(device ? deviceGroupId(device) : options.groupId || "");
   syncShutdownFields();
 
   el.dialog.showModal();
   form.name.focus();
+}
+
+function openGroupDialog(group) {
+  if (!pageEditing) return;
+  editingGroupId = group ? group.id : null;
+  el.groupDialogTitle.textContent = group ? "Rename group" : "Add group";
+  el.groupDialogError.hidden = true;
+  el.groupForm.name.value = group?.name ?? "";
+  el.groupDialog.showModal();
+  el.groupForm.name.focus();
+}
+
+async function saveGroup(event) {
+  event.preventDefault();
+  const payload = { name: el.groupForm.name.value };
+  const button = document.getElementById("group-dialog-save");
+  button.disabled = true;
+  try {
+    if (editingGroupId) {
+      await api(`/api/groups/${editingGroupId}`, {
+        method: "PUT",
+        body: JSON.stringify(payload),
+      });
+    } else {
+      await api("/api/groups", { method: "POST", body: JSON.stringify(payload) });
+    }
+    el.groupDialog.close();
+    await loadDevices();
+    touchEditTimer();
+    snackbar(editingGroupId ? "Group updated" : "Group added", "ok");
+  } catch (err) {
+    el.groupDialogError.textContent = err.message;
+    el.groupDialogError.hidden = false;
+  } finally {
+    button.disabled = false;
+  }
 }
 
 async function saveDevice(event) {
@@ -544,6 +1049,7 @@ async function saveDevice(event) {
     shutdown_user: form.shutdown_user.value,
     shutdown_command: form.shutdown_command.value,
     enabled: form.enabled.checked,
+    group_id: form.group_id ? form.group_id.value : "",
   };
   if (form.shutdown_password.value) {
     payload.shutdown_password = form.shutdown_password.value;
@@ -559,6 +1065,7 @@ async function saveDevice(event) {
     }
     el.dialog.close();
     await loadDevices();
+    touchEditTimer();
     snackbar(editingId ? "Device updated" : "Device added", "ok");
   } catch (err) {
     el.dialogError.textContent = err.message;
@@ -568,29 +1075,270 @@ async function saveDevice(event) {
   }
 }
 
+function clearDropTargets() {
+  for (const node of el.devices.querySelectorAll(".is-drop-target")) {
+    node.classList.remove("is-drop-target");
+  }
+}
+
+function dropIndex(grid, event) {
+  const cards = [...grid.querySelectorAll(".device-card")];
+  const overCard = event.target.closest(".device-card");
+  if (!overCard || !cards.includes(overCard)) return cards.length;
+  let index = cards.indexOf(overCard);
+  const rect = overCard.getBoundingClientRect();
+  const pastMid =
+    deviceView === "list"
+      ? event.clientY > rect.top + rect.height / 2
+      : event.clientX > rect.left + rect.width / 2;
+  if (pastMid) index += 1;
+  return index;
+}
+
+async function moveDraggedDevice(section, event) {
+  const deviceId = dragDeviceId;
+  if (!deviceId) return;
+  const groupId = section.dataset.groupId || "";
+  const grid = section.querySelector(".device-grid");
+  let index = dropIndex(grid, event);
+  const device = devices.find((item) => item.id === deviceId);
+  if (device && deviceGroupId(device) === groupId) {
+    const fromIndex = devicesInGroup(groupId).findIndex((item) => item.id === deviceId);
+    if (fromIndex !== -1 && fromIndex < index) index -= 1;
+  }
+  try {
+    await api(`/api/devices/${deviceId}/move`, {
+      method: "PUT",
+      body: JSON.stringify({ group_id: groupId, index }),
+    });
+    await loadDevices();
+    touchEditTimer();
+  } catch (err) {
+    snackbar(err.message, "fail");
+  }
+}
+
+async function reorderDraggedGroup(section) {
+  const sourceId = dragGroupId;
+  const targetId = section.dataset.groupId || "";
+  if (!sourceId || !targetId || sourceId === targetId) return;
+  const ids = groups.map((group) => group.id);
+  const from = ids.indexOf(sourceId);
+  const to = ids.indexOf(targetId);
+  if (from === -1 || to === -1) return;
+  ids.splice(from, 1);
+  ids.splice(to, 0, sourceId);
+  try {
+    await api("/api/groups/reorder", {
+      method: "PUT",
+      body: JSON.stringify({ ids }),
+    });
+    await loadDevices();
+    touchEditTimer();
+  } catch (err) {
+    snackbar(err.message, "fail");
+  }
+}
+
+async function wakeGroup(groupId, sectionDevices) {
+  try {
+    if (groupId) {
+      const data = await api(`/api/groups/${groupId}/wake`, { method: "POST" });
+      const label = data.woke === 1 ? "device" : "devices";
+      snackbar(`Woke ${data.woke} ${label}`, data.failed ? "fail" : "ok");
+    } else {
+      let woke = 0;
+      for (const device of sectionDevices) {
+        try {
+          await api(`/api/devices/${device.id}/wake`, { method: "POST", body: "{}" });
+          woke += 1;
+        } catch (err) {
+          /* keep going so the rest of the group still wakes */
+        }
+      }
+      snackbar(`Woke ${woke} ${woke === 1 ? "device" : "devices"}`, "ok");
+    }
+    crow();
+    await refreshStatus();
+  } catch (err) {
+    snackbar(err.message, "fail");
+  }
+}
+
+async function shutdownGroup(groupId, sectionDevices) {
+  try {
+    if (groupId) {
+      const data = await api(`/api/groups/${groupId}/shutdown`, { method: "POST" });
+      const parts = [`Shut down ${data.shut_down}`];
+      if (data.skipped) parts.push(`skipped ${data.skipped}`);
+      snackbar(parts.join(", "), data.failed ? "fail" : "ok");
+    } else {
+      let shut = 0;
+      let skipped = 0;
+      for (const device of sectionDevices) {
+        if (!device.can_shutdown) {
+          skipped += 1;
+          continue;
+        }
+        try {
+          await api(`/api/devices/${device.id}/shutdown`, { method: "POST", body: "{}" });
+          shut += 1;
+        } catch (err) {
+          /* keep going so the rest of the group still shuts down */
+        }
+      }
+      const parts = [`Shut down ${shut}`];
+      if (skipped) parts.push(`skipped ${skipped}`);
+      snackbar(parts.join(", "), "ok");
+    }
+    doze();
+    await refreshStatus();
+  } catch (err) {
+    snackbar(err.message, "fail");
+  }
+}
+
+el.devices.addEventListener("change", (event) => {
+  const deviceInput = event.target.closest('input[data-role="select"]');
+  if (deviceInput) {
+    const card = deviceInput.closest(".device-card");
+    if (card) toggleSelect(card.dataset.id, deviceInput.checked);
+    return;
+  }
+  const groupInput = event.target.closest('input[data-action="select-group"]');
+  if (!groupInput) return;
+  const section = groupInput.closest(".device-section");
+  if (!section) return;
+  for (const device of devicesInGroup(section.dataset.groupId || "")) {
+    if (groupInput.checked) selectedIds.add(device.id);
+    else selectedIds.delete(device.id);
+  }
+  applySelection();
+});
+
 el.devices.addEventListener("click", async (event) => {
+  if (selecting) {
+    const interactive = event.target.closest("button, input, a, label");
+    const card = event.target.closest(".device-card");
+    if (card && !interactive) {
+      toggleSelect(card.dataset.id);
+      return;
+    }
+  }
+
   const button = event.target.closest("button[data-action]");
   if (!button) return;
+  const action = button.dataset.action;
+  if (LAYOUT_ACTIONS.has(action) && !pageEditing) return;
+  const section = button.closest(".device-section");
   const card = button.closest(".device-card");
-  const device = devices.find((d) => d.id === card.dataset.id);
+
+  if (action === "toggle" && section) {
+    const groupId = section.dataset.groupId || "";
+    const next = !isCollapsed(groupId);
+    setCollapsed(groupId, next);
+    section.classList.toggle("is-collapsed", next);
+    const grid = section.querySelector(".device-grid");
+    if (grid) grid.hidden = next;
+    button.setAttribute("aria-expanded", String(!next));
+    button.setAttribute("aria-label", next ? "Expand" : "Collapse");
+    return;
+  }
+
+  if (action === "wake-group" && section) {
+    const groupId = section.dataset.groupId || "";
+    await wakeGroup(groupId, devicesInGroup(groupId));
+    return;
+  }
+
+  if (action === "shutdown-group" && section) {
+    const groupId = section.dataset.groupId || "";
+    await shutdownGroup(groupId, devicesInGroup(groupId));
+    return;
+  }
+
+  if (action === "add-to-group" && section) {
+    openDialog(null, { groupId: section.dataset.groupId || "" });
+    return;
+  }
+
+  if (action === "edit-group" && section) {
+    const group = groups.find((item) => item.id === section.dataset.groupId);
+    if (group) openGroupDialog(group);
+    return;
+  }
+
+  if (action === "delete-group" && section) {
+    const group = groups.find((item) => item.id === section.dataset.groupId);
+    if (!group) return;
+    if (!confirm(`Delete group "${group.name}"? Devices will become ungrouped.`)) return;
+    try {
+      await api(`/api/groups/${group.id}`, { method: "DELETE" });
+      await loadDevices();
+      touchEditTimer();
+      snackbar("Group deleted", "ok");
+    } catch (err) {
+      snackbar(err.message, "fail");
+    }
+    return;
+  }
+
+  if (!card) return;
+  const device = devices.find((item) => item.id === card.dataset.id);
   if (!device) return;
 
-  if (button.dataset.action === "wake") {
+  if (action === "wake") {
     await wake(device, card);
-  } else if (button.dataset.action === "shutdown") {
+  } else if (action === "shutdown") {
     if (!confirm(`Shut down ${device.name}?`)) return;
     await shutdown(device, card);
-  } else if (button.dataset.action === "edit") {
+  } else if (action === "edit") {
     openDialog(device);
-  } else if (button.dataset.action === "delete") {
+  } else if (action === "delete") {
     if (!confirm(`Delete ${device.name}?`)) return;
     try {
       await api(`/api/devices/${device.id}`, { method: "DELETE" });
       await loadDevices();
+      touchEditTimer();
       snackbar("Device deleted", "ok");
     } catch (err) {
       snackbar(err.message, "fail");
     }
+  }
+});
+
+el.devices.addEventListener("dragover", (event) => {
+  if (!pageEditing || selecting) return;
+  const section = event.target.closest(".device-section");
+  if (!section || (!dragDeviceId && !dragGroupId)) return;
+  if (dragGroupId && !section.dataset.groupId) return;
+  event.preventDefault();
+  event.dataTransfer.dropEffect = "move";
+  clearDropTargets();
+  section.classList.add("is-drop-target");
+  touchEditTimer();
+});
+
+el.devices.addEventListener("dragleave", (event) => {
+  const section = event.target.closest(".device-section");
+  if (!section || section.contains(event.relatedTarget)) return;
+  section.classList.remove("is-drop-target");
+});
+
+el.devices.addEventListener("drop", async (event) => {
+  if (!pageEditing) return;
+  const section = event.target.closest(".device-section");
+  if (!section) return;
+  event.preventDefault();
+  clearDropTargets();
+  if (dragGroupId) {
+    await reorderDraggedGroup(section);
+    dragGroupId = null;
+    return;
+  }
+  if (dragDeviceId) {
+    await moveDraggedDevice(section, event);
+    dragDeviceId = null;
   }
 });
 
@@ -606,8 +1354,70 @@ systemDark.addEventListener("change", () => {
 
 if (el.mascot) el.mascot.addEventListener("click", crow);
 
-el.addDevice.addEventListener("click", () => openDialog(null));
+el.addDevice.addEventListener("click", () => {
+  if (!pageEditing) return;
+  openDialog(null);
+});
+el.addGroup.addEventListener("click", () => {
+  if (!pageEditing) return;
+  openGroupDialog(null);
+});
+el.pageEdit.addEventListener("click", () => startPageEdit());
+el.pageSave.addEventListener("click", () => lockPage());
+
+function noteEditActivity(event) {
+  if (!pageEditing) return;
+  if (event?.target?.closest?.("#page-save")) return;
+  touchEditTimer();
+}
+
+el.app.addEventListener("pointerdown", noteEditActivity);
+el.app.addEventListener("keydown", noteEditActivity);
+el.app.addEventListener("input", noteEditActivity);
+el.dialog.addEventListener("pointerdown", noteEditActivity);
+el.dialog.addEventListener("keydown", noteEditActivity);
+el.dialog.addEventListener("input", noteEditActivity);
+el.groupDialog.addEventListener("pointerdown", noteEditActivity);
+el.groupDialog.addEventListener("keydown", noteEditActivity);
+el.groupDialog.addEventListener("input", noteEditActivity);
+el.viewCards?.addEventListener("click", () => setView("cards"));
+el.viewList?.addEventListener("click", () => setView("list"));
+el.selectMode.addEventListener("click", () => setSelecting(!selecting));
+el.selectionDone.addEventListener("click", () => setSelecting(false));
+el.selectionAll.addEventListener("click", () => {
+  const allOn = devices.length > 0 && selectedDevices().length === devices.length;
+  for (const device of devices) {
+    if (allOn) selectedIds.delete(device.id);
+    else selectedIds.add(device.id);
+  }
+  applySelection();
+});
+el.selectionWake.addEventListener("click", async () => {
+  const list = selectedDevices();
+  if (!list.length) return;
+  el.selectionWake.disabled = true;
+  try {
+    await wakeMany(list);
+  } finally {
+    applySelection();
+  }
+});
+el.selectionShutdown.addEventListener("click", async () => {
+  const list = selectedDevices();
+  if (!list.length) return;
+  el.selectionShutdown.disabled = true;
+  try {
+    await shutdownMany(list);
+  } finally {
+    applySelection();
+  }
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && selecting) setSelecting(false);
+});
 el.dialogCancel.addEventListener("click", () => el.dialog.close());
+el.groupDialogCancel.addEventListener("click", () => el.groupDialog.close());
+el.groupForm.addEventListener("submit", saveGroup);
 el.shutdownMethod.addEventListener("change", syncShutdownFields);
 el.form.addEventListener("submit", saveDevice);
 el.refresh.addEventListener("click", loadDevices);
@@ -663,6 +1473,7 @@ document.addEventListener("visibilitychange", () => {
 
 (function init() {
   hydrateIcons();
+  applyView();
   applyTheme(document.documentElement.dataset.themePreference);
 
   const boot = readBootstrap();
@@ -673,6 +1484,8 @@ document.addEventListener("visibilitychange", () => {
       return;
     }
     devices = Array.isArray(boot.devices) ? boot.devices : [];
+    groups = Array.isArray(boot.groups) ? boot.groups : [];
+    applyEditLockSeconds(boot.edit_lock);
     showApp();
     renderDevices();
     refreshStatus();
@@ -696,6 +1509,7 @@ async function fallbackInit() {
   try {
     const session = await fetch("/api/session").then((r) => r.json());
     passwordLogin = Boolean(session.password_login);
+    applyEditLockSeconds(session.edit_lock);
     if (session.auth_required && !session.authenticated) {
       showLogin();
       return;

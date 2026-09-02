@@ -135,6 +135,8 @@ def create_app(store: DeviceStore | None = None, scheduler: WakeScheduler | None
                 "authenticated": is_authenticated,
                 "password_login": bool(auth.PASSWORD),
                 "devices": boot_devices,
+                "groups": store.list_groups() if is_authenticated else [],
+                "edit_lock": config.edit_lock_seconds(),
             },
         )
 
@@ -149,6 +151,7 @@ def create_app(store: DeviceStore | None = None, scheduler: WakeScheduler | None
                 "auth_required": auth.auth_required(),
                 "authenticated": auth.is_authenticated(),
                 "password_login": bool(auth.PASSWORD),
+                "edit_lock": config.edit_lock_seconds(),
             }
         )
 
@@ -171,7 +174,12 @@ def create_app(store: DeviceStore | None = None, scheduler: WakeScheduler | None
     @app.get("/api/devices")
     @auth.protected
     def api_list_devices():
-        return jsonify({"devices": with_status(store.list(), probe=_wants_probe())})
+        return jsonify(
+            {
+                "devices": with_status(store.list(), probe=_wants_probe()),
+                "groups": store.list_groups(),
+            }
+        )
 
     @app.post("/api/devices")
     @auth.protected
@@ -194,6 +202,139 @@ def create_app(store: DeviceStore | None = None, scheduler: WakeScheduler | None
         store.delete(device_id)
         cache.invalidate(device_id)
         return jsonify({"deleted": device_id})
+
+    @app.put("/api/devices/<device_id>/move")
+    @auth.protected
+    def api_move_device(device_id: str):
+        payload = request.get_json(silent=True) or {}
+        index = payload.get("index")
+        if index is not None:
+            try:
+                index = int(index)
+            except (TypeError, ValueError) as exc:
+                raise ValidationError("Index must be a number") from exc
+        device = store.move_device(device_id, payload.get("group_id", ""), index)
+        return jsonify(export_device(device))
+
+    @app.get("/api/groups")
+    @auth.protected
+    def api_list_groups():
+        return jsonify({"groups": store.list_groups()})
+
+    @app.post("/api/groups")
+    @auth.protected
+    def api_create_group():
+        payload = request.get_json(silent=True) or {}
+        group = store.add_group(payload)
+        return jsonify(group), 201
+
+    @app.put("/api/groups/reorder")
+    @auth.protected
+    def api_reorder_groups():
+        payload = request.get_json(silent=True) or {}
+        groups = store.reorder_groups(payload.get("ids", []))
+        return jsonify({"groups": groups})
+
+    @app.put("/api/groups/<group_id>")
+    @auth.protected
+    def api_update_group(group_id: str):
+        payload = request.get_json(silent=True) or {}
+        try:
+            group = store.update_group(group_id, payload)
+        except KeyError:
+            return jsonify({"error": f"Unknown group: {group_id}"}), 404
+        return jsonify(group)
+
+    @app.delete("/api/groups/<group_id>")
+    @auth.protected
+    def api_delete_group(group_id: str):
+        try:
+            store.delete_group(group_id)
+        except KeyError:
+            return jsonify({"error": f"Unknown group: {group_id}"}), 404
+        return jsonify({"deleted": group_id})
+
+    @app.post("/api/groups/<group_id>/wake")
+    @auth.protected
+    def api_wake_group(group_id: str):
+        group = store.get_group(group_id)
+        if not group:
+            return jsonify({"error": "Unknown group"}), 404
+
+        results = []
+        woke = 0
+        failed = 0
+        for device in store.devices_in_group(group_id):
+            result = send_magic_packet(
+                device["mac"],
+                broadcast=device.get("broadcast") or None,
+                repeat=device.get("repeat"),
+                host=device.get("host") or None,
+            )
+            cache.invalidate(device["id"])
+            item = result.as_dict()
+            item["id"] = device["id"]
+            item["device"] = device["name"]
+            results.append(item)
+            if result.ok:
+                woke += 1
+            else:
+                failed += 1
+
+        log.info("Wake group %s: %s woke, %s failed", group["name"], woke, failed)
+        return jsonify(
+            {
+                "group": group["name"],
+                "results": results,
+                "woke": woke,
+                "failed": failed,
+                "count": len(results),
+            }
+        )
+
+    @app.post("/api/groups/<group_id>/shutdown")
+    @auth.protected
+    def api_shutdown_group(group_id: str):
+        group = store.get_group(group_id)
+        if not group:
+            return jsonify({"error": "Unknown group"}), 404
+
+        results = []
+        shut_down = 0
+        failed = 0
+        skipped = 0
+        for device in store.devices_in_group(group_id):
+            if not shutdown_configured(device):
+                skipped += 1
+                continue
+            result = shutdown_device(device)
+            cache.invalidate(device["id"])
+            item = result.as_dict()
+            item["id"] = device["id"]
+            item["device"] = device["name"]
+            results.append(item)
+            if result.ok:
+                shut_down += 1
+            else:
+                failed += 1
+
+        log.info(
+            "Shutdown group %s: %s shut down, %s failed, %s skipped",
+            group["name"],
+            shut_down,
+            failed,
+            skipped,
+        )
+        return jsonify(
+            {
+                "group": group["name"],
+                "results": results,
+                "shut_down": shut_down,
+                "failed": failed,
+                "skipped": skipped,
+                "count": shut_down + failed + skipped,
+            }
+        )
 
     @app.post("/api/devices/<device_id>/wake")
     @auth.protected
