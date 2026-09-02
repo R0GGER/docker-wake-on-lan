@@ -62,17 +62,44 @@ def check_api_key(key: str | None) -> bool:
         return False
 
 
-def request_api_key() -> str | None:
-    """API key from header, bearer token, or ``key`` / ``api_key`` query param."""
-    key = request.headers.get("X-API-Key")
-    if key:
-        return key
+def provided_api_keys() -> list[str]:
+    """All API keys offered on this request (header, bearer, query, JSON body).
+
+    iOS Shortcuts POST often sends an empty or unrelated ``Authorization``
+    header. Collect every candidate so that ``?key=`` still wins if it is valid.
+    """
+    keys: list[str] = []
+    seen: set[str] = set()
+
+    def add(value: object | None) -> None:
+        if value is None:
+            return
+        trimmed = str(value).strip()
+        if not trimmed or trimmed in seen:
+            return
+        seen.add(trimmed)
+        keys.append(trimmed)
+
+    add(request.headers.get("X-API-Key"))
     header = request.headers.get("Authorization", "")
     if header.lower().startswith("bearer "):
-        token = header[7:].strip()
-        return token or None
-    query = (request.args.get("key") or request.args.get("api_key") or "").strip()
-    return query or None
+        add(header[7:])
+    add(request.args.get("key"))
+    add(request.args.get("api_key"))
+    payload = request.get_json(silent=True)
+    if isinstance(payload, dict):
+        add(payload.get("key"))
+        add(payload.get("api_key"))
+    return keys
+
+
+def request_api_key() -> str | None:
+    """Return a valid API key from the request, or the first candidate."""
+    keys = provided_api_keys()
+    for key in keys:
+        if check_api_key(key):
+            return key
+    return keys[0] if keys else None
 
 
 def wants_html() -> bool:
@@ -114,7 +141,7 @@ def is_api_key_authenticated() -> bool:
     """
     if not auth_required():
         return True
-    return check_api_key(request_api_key())
+    return any(check_api_key(key) for key in provided_api_keys())
 
 
 def _auth_error(heading: str, message: str):
