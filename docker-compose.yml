@@ -1,7 +1,7 @@
 services:
   wake-on-lan:
-    build: .
-    #image: ghcr.io/r0gger/docker-wake-on-lan
+    #build: .
+    image: ghcr.io/r0gger/docker-wake-on-lan
     container_name: wake-on-lan
     restart: unless-stopped
     # Host networking is required on Linux: broadcast packets do not cross the Docker bridge.
