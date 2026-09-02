@@ -65,6 +65,10 @@ The button in the top-right corner cycles between following the system setting, 
 * Remote shutdown: SSH (Linux/NAS), Windows RPC, or a Sleep-on-LAN magic packet. If a host is set, the UI waits until the machine goes offline.
 * Schedule a wake-up with a cron expression, for example `0 7 * * 1-5` for every weekday at 07:00.
 * Quick wake for a MAC address you do not want to save.
+* Group devices into named sections. Collapse a section, wake or shut down the whole group, and drag devices between groups.
+* Switch between card and list views. Groups stay available in both. The choice is stored in the browser.
+* Select several devices and wake or shut them down together.
+* Layout stays locked until you tap Edit. Save, or `EDIT_LOCK` seconds idle (default 300), locks add/edit/delete/drag again.
 
 ## CLI mode
 
@@ -113,6 +117,7 @@ docker run --rm --net=host ghcr.io/r0gger/docker-wake-on-lan 11:22:33:44:55:66 -
 | `HOST` | `0.0.0.0` | web UI listen address |
 | `CONFIG_DIR` | `/config` | where `devices.json` and the session key are stored |
 | `THEME` | `auto` | default theme: `auto`, `light`, or `dark` |
+| `EDIT_LOCK` | `300` | seconds of idle time before Edit mode locks again; `0` disables auto-lock |
 | `AUTH_ENABLED` | `true` | set to `false` to run without a login |
 | `WEBUI_PASSWORD` | - | password for the web UI |
 | `API_KEY` | - | token for the REST API |
@@ -158,12 +163,20 @@ curl -X POST -H "X-API-Key: $API_KEY" -H 'Content-Type: application/json' \
 
 | Method | Path | Description |
 | --- | --- | --- |
-| `GET` | `/api/devices` | all devices including status |
+| `GET` | `/api/devices` | all devices including status, plus `groups` |
 | `POST` | `/api/devices` | add a device |
 | `PUT` | `/api/devices/<id>` | update a device |
+| `PUT` | `/api/devices/<id>/move` | move a device to a group (`group_id`, `index`) |
 | `DELETE` | `/api/devices/<id>` | delete a device |
 | `POST` | `/api/devices/<id>/wake` | wake, with `wait` and `timeout` |
 | `POST` | `/api/devices/<id>/shutdown` | shut down, with `wait` and `timeout` |
+| `GET` | `/api/groups` | all groups |
+| `POST` | `/api/groups` | add a group |
+| `PUT` | `/api/groups/<id>` | rename a group |
+| `PUT` | `/api/groups/reorder` | set group order (`ids`) |
+| `DELETE` | `/api/groups/<id>` | delete a group (devices become ungrouped) |
+| `POST` | `/api/groups/<id>/wake` | wake every device in the group |
+| `POST` | `/api/groups/<id>/shutdown` | shut down devices in the group that have shutdown configured |
 | `POST` | `/api/wake` | wake a MAC address without saving it |
 | `GET` | `/api/status` | status only; cheap to poll |
 | `GET` | `/healthz` | health check; no authentication |
