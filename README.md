@@ -10,9 +10,11 @@ Magic packets are sent to both UDP port 9 and 7 and repeated a few times, which 
 > `--net=host` is required in both modes: broadcast packets cannot cross the Docker bridge network.
 
 ## Web mode
+<p align="center">
+  <img src="screenshots/1_cards.png" alt="Web UI cards view" width="30%"> 
+  <img src="screenshots/2_list.png" alt="Web UI list view" width="30%">
+</p>
 
-![Web UI cards view](screenshots/1_cards.png)
-![Web UI list view](screenshots/2_list.png)
 
 ```
 docker run -d --name wake-on-lan --net=host \
