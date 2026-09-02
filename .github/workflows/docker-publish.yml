@@ -1,0 +1,185 @@
+name: Build & publish Docker image
+
+on:
+  push:
+    branches: [main, master]
+    tags: ['v*.*.*']
+  pull_request:
+    branches: [main, master]
+  schedule:
+    # Wekelijkse rebuild zodat de image de laatste Alpine security patches bevat.
+    - cron: '17 4 * * 1'
+  workflow_dispatch:
+
+env:
+  DOCKERHUB_IMAGE: r0gger/docker-wake-on-lan
+  PLATFORMS: linux/amd64,linux/arm64,linux/arm/v7,linux/arm/v6,linux/386,linux/ppc64le,linux/s390x
+  PR_PLATFORMS: linux/amd64,linux/arm64
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    outputs:
+      image: ${{ steps.vars.outputs.ghcr_image }}
+      digest: ${{ steps.build.outputs.digest }}
+      pushed: ${{ steps.vars.outputs.push }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Secrets zijn niet beschikbaar in `if`-expressies, dus vertalen we ze naar step outputs.
+      - name: Resolve build variables
+        id: vars
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+        run: |
+          echo "ghcr_image=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
+          if [ -n "$DOCKERHUB_USERNAME" ]; then
+            echo "dockerhub=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "dockerhub=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::DOCKERHUB_USERNAME ontbreekt, alleen GHCR wordt gepubliceerd."
+          fi
+
+          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+            echo "push=false" >> "$GITHUB_OUTPUT"
+            echo "platforms=$PR_PLATFORMS" >> "$GITHUB_OUTPUT"
+          else
+            echo "push=true" >> "$GITHUB_OUTPUT"
+            echo "platforms=$PLATFORMS" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        if: steps.vars.outputs.push == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to Docker Hub
+        if: steps.vars.outputs.push == 'true' && steps.vars.outputs.dockerhub == 'true'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ steps.vars.outputs.ghcr_image }}
+            name=${{ env.DOCKERHUB_IMAGE }},enable=${{ steps.vars.outputs.dockerhub }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=ref,event=branch
+            type=ref,event=pr
+            type=schedule,pattern={{date 'YYYYMMDD'}}
+            type=sha,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+          labels: |
+            org.opencontainers.image.title=docker-wake-on-lan
+            org.opencontainers.image.description=Wake on LAN in a container, with web interface, status checks and scheduling
+            org.opencontainers.image.licenses=MIT
+
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: ${{ steps.vars.outputs.platforms }}
+          push: ${{ steps.vars.outputs.push == 'true' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          annotations: ${{ steps.meta.outputs.annotations }}
+          # Bij een geplande of handmatige rebuild bewust zonder cache bouwen: het doel is
+          # juist een verse base image mét de nieuwste apk-patches.
+          pull: true
+          no-cache: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+          cache-from: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '' || 'type=gha' }}
+          cache-to: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '' || 'type=gha,mode=max' }}
+          provenance: mode=max
+          sbom: true
+
+      - name: Attest build provenance
+        if: steps.vars.outputs.push == 'true'
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ steps.vars.outputs.ghcr_image }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+      - name: Sync Docker Hub description
+        if: steps.vars.outputs.push == 'true' && steps.vars.outputs.dockerhub == 'true' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+        uses: peter-evans/dockerhub-description@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: ${{ env.DOCKERHUB_IMAGE }}
+          readme-filepath: ./README.md
+
+  scan:
+    needs: build
+    if: needs.build.outputs.pushed == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+      security-events: write
+    env:
+      IMAGE_REF: ${{ needs.build.outputs.image }}@${{ needs.build.outputs.digest }}
+      # Trivy zelf via GHCR halen voorkomt de anonieme pull-limiet van Docker Hub.
+      TRIVY_IMAGE: ghcr.io/aquasecurity/trivy:latest
+    steps:
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Scan image with Trivy
+        run: |
+          mkdir -p "$RUNNER_TEMP/trivy"
+          run_trivy() {
+            docker run --rm \
+              -e TRIVY_USERNAME="${{ github.actor }}" \
+              -e TRIVY_PASSWORD="${{ secrets.GITHUB_TOKEN }}" \
+              -v "$RUNNER_TEMP/trivy:/out" \
+              "$TRIVY_IMAGE" image --image-src remote --scanners vuln "$@" "$IMAGE_REF"
+          }
+
+          run_trivy --format sarif --output /out/results.sarif
+
+          {
+            echo '### Trivy scan (HIGH/CRITICAL)'
+            echo '```'
+            run_trivy --severity HIGH,CRITICAL --format table
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload results to code scanning
+        uses: github/codeql-action/upload-sarif@v3
+        continue-on-error: true
+        with:
+          sarif_file: ${{ runner.temp }}/trivy/results.sarif
+          category: trivy-image
