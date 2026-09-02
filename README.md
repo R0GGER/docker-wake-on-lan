@@ -142,7 +142,7 @@ docker compose up -d --force-recreate
 
 ## REST API
 
-Authenticate with the `X-API-Key` header (or `Authorization: Bearer <key>`).
+Authenticate with the `X-API-Key` header, `Authorization: Bearer <key>`, or a `key` (or `api_key`) query parameter.
 
 ```
 # List devices including status
@@ -164,6 +164,18 @@ curl -X POST -H "X-API-Key: $API_KEY" -H 'Content-Type: application/json' \
      http://host:8080/api/wake
 ```
 
+### Wake link
+
+A browser can wake a saved device with a single GET. Set `API_KEY` and put it in the URL so you do not need to be logged in:
+
+```
+http://host:8099/api/devices/<id>/wake?key=$API_KEY
+```
+
+Open that address, bookmark it, or put it behind a button on another device. The browser shows a short confirmation page. `curl` and other clients that prefer JSON still get JSON.
+
+The key will appear in browser history and server logs, so use a long random `API_KEY`. GET wake does not accept the web UI session, only the API key, so a logged-in browser cannot be tricked into waking a machine via a crafted link.
+
 | Method | Path | Description |
 | --- | --- | --- |
 | `GET` | `/api/devices` | all devices including status, plus `groups` |
@@ -171,6 +183,7 @@ curl -X POST -H "X-API-Key: $API_KEY" -H 'Content-Type: application/json' \
 | `PUT` | `/api/devices/<id>` | update a device |
 | `PUT` | `/api/devices/<id>/move` | move a device to a group (`group_id`, `index`) |
 | `DELETE` | `/api/devices/<id>` | delete a device |
+| `GET` | `/api/devices/<id>/wake` | wake via a clickable link (`?key=`); API key required |
 | `POST` | `/api/devices/<id>/wake` | wake, with `wait` and `timeout` |
 | `POST` | `/api/devices/<id>/shutdown` | shut down, with `wait` and `timeout` |
 | `GET` | `/api/groups` | all groups |
