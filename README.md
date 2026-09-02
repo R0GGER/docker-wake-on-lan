@@ -11,8 +11,8 @@ Magic packets are sent to both UDP port 9 and 7 and repeated a few times, which 
 
 ## Web mode
 <p align="center">
-  <img src="screenshots/1_cards.png" alt="Web UI cards view" width="30%"> 
-  <img src="screenshots/2_list.png" alt="Web UI list view" width="30%">
+  <img src="screenshots/1_cards.png" alt="Web UI cards view" width="48%"> 
+  <img src="screenshots/2_list.png" alt="Web UI list view" width="48%">
 </p>
 
 
