@@ -1,7 +1,7 @@
 services:
   wake-on-lan:
-    #build: .
-    image: ghcr.io/r0gger/docker-wake-on-lan
+    build: .
+    #image: ghcr.io/r0gger/docker-wake-on-lan
     container_name: wake-on-lan
     restart: unless-stopped
     # Host networking is required on Linux: broadcast packets do not cross the Docker bridge.
@@ -13,7 +13,8 @@ services:
       MODE: web
       PORT: 8099
       TZ: Europe/Amsterdam
-      THEME: auto # Theme: auto, light or dark    
+      THEME: auto # Theme: auto, light or dark
+      EDIT_LOCK: 300 # Seconds idle before the layout locks; 0 disables auto-lock
       WEBUI_PASSWORD: CHANGE-ME
       # Optional: token for the REST API (Home Assistant, scripts)
       # API_KEY: replace-with-a-long-random-string
