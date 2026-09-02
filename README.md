@@ -23,6 +23,29 @@ docker run -d --name wake-on-lan --net=host \
 The UI is then available at `http://<host-ip>:8080`. Devices are stored in `/config/devices.json`, so mount that volume to keep them across restarts.
 
 Or with Docker Compose:
+```
+services:
+  wake-on-lan:
+    #build: .
+    image: ghcr.io/r0gger/docker-wake-on-lan
+    container_name: wake-on-lan
+    restart: unless-stopped
+    # Host networking is required on Linux: broadcast packets do not cross the Docker bridge.
+    # It also means port mappings are ignored, so PORT decides where the UI listens.
+    # Docker Desktop (Windows/Mac) uses a VM: set each device's IP so packets are routed
+    # to the LAN as unicast / directed broadcast instead of 255.255.255.255.
+    network_mode: host
+    environment:
+      MODE: web
+      PORT: 8099
+      TZ: Europe/Amsterdam
+      THEME: auto # Theme: auto, light or dark    
+      WEBUI_PASSWORD: CHANGE-ME
+      # Optional: token for the REST API (Home Assistant, scripts)
+      # API_KEY: replace-with-a-long-random-string
+    volumes:
+      - ./config:/config
+```
 
 ```
 docker compose up -d
