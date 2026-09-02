@@ -1,4 +1,4 @@
-# WAKE ON LAN
+# Wake on LAN
 
 Wake-on-LAN in a container, with two ways to use it:
 
