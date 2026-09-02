@@ -895,10 +895,38 @@ main {
   flex: 1;
 }
 
-.device-titles h2 {
+.device-name {
+  display: flex;
+  align-items: center;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.device-name h2 {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.copy-id {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  color: #b0b8c8;
+}
+
+.copy-id:hover,
+.copy-id:focus-visible {
+  color: #8a93a8;
+}
+
+:root[data-theme="dark"] .copy-id {
+  color: #8a93a8;
+}
+
+:root[data-theme="dark"] .copy-id:hover,
+:root[data-theme="dark"] .copy-id:focus-visible {
+  color: #b0b8c8;
 }
 
 .device-meta {
@@ -1420,11 +1448,19 @@ dialog h2 {
 }
 
 .snackbar.ok .leading {
-  color: var(--md-success);
+  width: 24px;
+  height: 24px;
+  border-radius: var(--md-shape-full);
+  background: var(--md-online);
+  color: var(--md-on-online);
 }
 
 .snackbar.fail .leading {
-  color: var(--md-error);
+  width: 24px;
+  height: 24px;
+  border-radius: var(--md-shape-full);
+  background: var(--md-error);
+  color: var(--md-on-error);
 }
 
 @keyframes snackbar-in {
@@ -1468,6 +1504,14 @@ dialog h2 {
 .login-card .app-icon {
   width: 48px;
   height: 48px;
+}
+
+.notice-ok {
+  color: var(--md-online);
+}
+
+.notice-fail {
+  color: var(--md-error);
 }
 
 @media (prefers-reduced-motion: reduce) {

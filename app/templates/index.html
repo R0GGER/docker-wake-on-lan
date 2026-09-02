@@ -33,7 +33,7 @@
     })();
   </script>
 
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=27">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=31">
 </head>
 <body>
   <div id="login" class="login-scaffold"{% if authenticated %} hidden{% endif %}>
@@ -291,6 +291,6 @@
   <div id="snackbar-host" class="snackbar-host" aria-live="polite"></div>
 
   <script type="application/json" id="bootstrap">{{ bootstrap|tojson }}</script>
-  <script src="{{ url_for('static', filename='app.js') }}?v=19"></script>
+  <script src="{{ url_for('static', filename='app.js') }}?v=21"></script>
 </body>
 </html>
