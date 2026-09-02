@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en" data-theme-default="{{ default_theme }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="referrer" content="no-referrer">
+  <meta name="theme-color" content="#2e3a8c">
+  <title>{{ heading }} — Wake on LAN</title>
+  <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}?v=4" type="image/svg+xml">
+  <script>
+    (function () {
+      var root = document.documentElement;
+      var stored = null;
+      try {
+        stored = localStorage.getItem("wol-theme");
+      } catch (err) {
+        /* storage blocked */
+      }
+      var preference = stored || root.dataset.themeDefault || "auto";
+      if (["auto", "light", "dark"].indexOf(preference) === -1) preference = "auto";
+      root.dataset.theme =
+        preference === "dark" ||
+        (preference === "auto" && window.matchMedia("(prefers-color-scheme: dark)").matches)
+          ? "dark"
+          : "light";
+    })();
+  </script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=31">
+</head>
+<body>
+  <div class="login-scaffold">
+    <div class="card elevated login-card">
+      <div class="login-head">
+        <span class="app-icon app-mascot" aria-hidden="true">
+          <img class="mascot-img" src="{{ url_for('static', filename='chicken.svg') }}" alt="">
+        </span>
+        <h1 class="headline-small{% if ok %} notice-ok{% else %} notice-fail{% endif %}">{{ heading }}</h1>
+      </div>
+      <p class="body-medium on-surface-variant">{{ message }}</p>
+      <a class="btn filled" href="{{ url_for('index') }}">Open Wake on LAN</a>
+    </div>
+  </div>
+</body>
+</html>

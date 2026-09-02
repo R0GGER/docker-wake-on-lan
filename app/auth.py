@@ -8,7 +8,7 @@ import logging
 import os
 import secrets
 
-from flask import jsonify, request, session
+from flask import jsonify, render_template, request, session
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from . import config
@@ -56,7 +56,37 @@ def check_password(password: str) -> bool:
 def check_api_key(key: str | None) -> bool:
     if not API_KEY or not key:
         return False
-    return hmac.compare_digest(API_KEY, key)
+    try:
+        return hmac.compare_digest(API_KEY, key)
+    except (TypeError, ValueError):
+        return False
+
+
+def request_api_key() -> str | None:
+    """API key from header, bearer token, or ``key`` / ``api_key`` query param."""
+    key = request.headers.get("X-API-Key")
+    if key:
+        return key
+    header = request.headers.get("Authorization", "")
+    if header.lower().startswith("bearer "):
+        token = header[7:].strip()
+        return token or None
+    query = (request.args.get("key") or request.args.get("api_key") or "").strip()
+    return query or None
+
+
+def wants_html() -> bool:
+    """True when a browser GET should get an HTML page instead of JSON."""
+    if request.method != "GET":
+        return False
+    return request.accept_mimetypes.best_match(["application/json", "text/html"]) == "text/html"
+
+
+def no_store_headers() -> dict[str, str]:
+    return {
+        "Cache-Control": "no-store",
+        "Referrer-Policy": "no-referrer",
+    }
 
 
 def login() -> None:
@@ -73,13 +103,39 @@ def is_authenticated() -> bool:
         return True
     if session.get(SESSION_KEY):
         return True
+    return is_api_key_authenticated()
 
-    key = request.headers.get("X-API-Key")
-    if not key:
-        header = request.headers.get("Authorization", "")
-        if header.lower().startswith("bearer "):
-            key = header[7:].strip()
-    return check_api_key(key)
+
+def is_api_key_authenticated() -> bool:
+    """True when auth is off, or the request carries a valid API key.
+
+    Session cookies are ignored so a GET wake link cannot be triggered by a
+    logged-in browser visiting a crafted URL.
+    """
+    if not auth_required():
+        return True
+    return check_api_key(request_api_key())
+
+
+def _auth_error(heading: str, message: str):
+    payload = {"error": heading}
+    headers = no_store_headers()
+    if wants_html():
+        theme = config.env_str("THEME", "auto").lower()
+        if theme not in ("auto", "light", "dark"):
+            theme = "auto"
+        return (
+            render_template(
+                "wake.html",
+                ok=False,
+                heading=heading,
+                message=message,
+                default_theme=theme,
+            ),
+            401,
+            headers,
+        )
+    return jsonify(payload), 401, headers
 
 
 def protected(view):
@@ -88,7 +144,26 @@ def protected(view):
     @functools.wraps(view)
     def wrapper(*args, **kwargs):
         if not is_authenticated():
-            return jsonify({"error": "Authentication required"}), 401
+            return _auth_error(
+                "Authentication required",
+                "Sign in through the web interface, or pass a valid API key.",
+            )
+        return view(*args, **kwargs)
+
+    return wrapper
+
+
+def protected_by_api_key(view):
+    """Require the API key. A UI session is not enough (GET wake links)."""
+
+    @functools.wraps(view)
+    def wrapper(*args, **kwargs):
+        if not is_api_key_authenticated():
+            return _auth_error(
+                "Authentication required",
+                "This wake link needs a valid API key. Set the API_KEY "
+                "environment variable, then add ?key=... to the URL.",
+            )
         return view(*args, **kwargs)
 
     return wrapper

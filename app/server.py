@@ -336,12 +336,15 @@ def create_app(store: DeviceStore | None = None, scheduler: WakeScheduler | None
             }
         )
 
-    @app.post("/api/devices/<device_id>/wake")
-    @auth.protected
-    def api_wake_device(device_id: str):
+    def _wake_device(device_id: str):
         device = store.get(device_id)
         if not device:
-            return jsonify({"error": "Unknown device"}), 404
+            return _wake_reply(
+                {"error": "Unknown device"},
+                404,
+                heading="Unknown device",
+                message="No device is stored with that id.",
+            )
 
         result = send_magic_packet(
             device["mac"],
@@ -363,7 +366,30 @@ def create_app(store: DeviceStore | None = None, scheduler: WakeScheduler | None
             response["elapsed"] = round(elapsed, 1)
 
         log.info("Wake %s (%s): %s", device["name"], device["mac"], response)
-        return jsonify(response), (200 if result.ok else 502)
+        if result.ok:
+            return _wake_reply(
+                response,
+                200,
+                heading=f"Waking {device['name']}",
+                message="Magic packet sent.",
+            )
+        errors = "; ".join(result.errors) or "no packets sent"
+        return _wake_reply(
+            response,
+            502,
+            heading=f"Could not wake {device['name']}",
+            message=errors,
+        )
+
+    @app.get("/api/devices/<device_id>/wake")
+    @auth.protected_by_api_key
+    def api_wake_device_get(device_id: str):
+        return _wake_device(device_id)
+
+    @app.post("/api/devices/<device_id>/wake")
+    @auth.protected
+    def api_wake_device(device_id: str):
+        return _wake_device(device_id)
 
     @app.post("/api/devices/<device_id>/shutdown")
     @auth.protected
@@ -445,6 +471,24 @@ def create_app(store: DeviceStore | None = None, scheduler: WakeScheduler | None
     app.extensions["device_store"] = store
     app.extensions["status_cache"] = cache
     return app
+
+
+def _wake_reply(payload: dict, status_code: int, *, heading: str, message: str):
+    """JSON for API clients; a short HTML page when a browser opens a wake link."""
+    headers = auth.no_store_headers()
+    if auth.wants_html():
+        return (
+            render_template(
+                "wake.html",
+                ok=status_code < 400,
+                heading=heading,
+                message=message,
+                default_theme=default_theme(),
+            ),
+            status_code,
+            headers,
+        )
+    return jsonify(payload), status_code, headers
 
 
 def _wants_probe() -> bool:

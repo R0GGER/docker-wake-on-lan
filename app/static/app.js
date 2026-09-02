@@ -45,6 +45,7 @@ const ICONS = {
     "M3 3v8h8V3H3zm6 6H5V5h4v4zm-6 4v8h8v-8H3zm6 6H5v-4h4v4zm4-16v8h8V3h-8zm6 6h-4V5h4v4zm-6 4v8h8v-8h-8zm6 6h-4v-4h4v4z",
   view_list:
     "M3 14h4v-4H3v4zm0 5h4v-4H3v4zM3 9h4V5H3v4zm5 5h13v-4H8v4zm0 5h13v-4H8v4zM8 5v4h13V5H8z",
+  copy: "M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z",
 };
 
 const THEMES = ["auto", "light", "dark"];
@@ -337,6 +338,36 @@ function cycleTheme() {
   applyTheme(next);
 }
 
+async function copyText(text) {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+  } catch (err) {
+    /* HTTP LAN pages are not a secure context; fall back to execCommand */
+  }
+  const field = document.createElement("textarea");
+  field.value = text;
+  field.setAttribute("readonly", "");
+  field.style.position = "fixed";
+  field.style.left = "-9999px";
+  document.body.append(field);
+  field.select();
+  const ok = document.execCommand("copy");
+  field.remove();
+  if (!ok) throw new Error("Could not copy");
+}
+
+async function copyDeviceId(device) {
+  try {
+    await copyText(device.id);
+    snackbar(`Copied ID for ${device.name}`, "ok");
+  } catch (err) {
+    snackbar("Could not copy device ID", "fail");
+  }
+}
+
 function snackbar(message, kind = "") {
   const node = document.createElement("div");
   node.className = `snackbar ${kind}`.trim();
@@ -504,7 +535,12 @@ function createCard(device, { draggable = false } = {}) {
       </label>
       <span class="device-avatar">${icon("power", 20)}</span>
       <div class="device-titles">
-        <h2 class="title-medium">${escapeHtml(device.name)}</h2>
+        <div class="device-name">
+          <h2 class="title-medium">${escapeHtml(device.name)}</h2>
+          <button type="button" class="icon-btn copy-id" data-action="copy-id" aria-label="Copy device ID" title="Copy device ID">
+            ${icon("copy", 14)}
+          </button>
+        </div>
         <p class="body-small on-surface-variant"><code>${escapeHtml(device.mac)}</code></p>
       </div>
       <span class="chip ${chipClass}"><span class="dot"></span>${statusLabel(device)}</span>
@@ -1287,7 +1323,9 @@ el.devices.addEventListener("click", async (event) => {
   const device = devices.find((item) => item.id === card.dataset.id);
   if (!device) return;
 
-  if (action === "wake") {
+  if (action === "copy-id") {
+    await copyDeviceId(device);
+  } else if (action === "wake") {
     await wake(device, card);
   } else if (action === "shutdown") {
     if (!confirm(`Shut down ${device.name}?`)) return;
