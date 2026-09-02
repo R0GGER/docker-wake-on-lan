@@ -31,7 +31,6 @@ Or with Docker Compose:
 ```
 services:
   wake-on-lan:
-    #build: .
     image: ghcr.io/r0gger/docker-wake-on-lan
     container_name: wake-on-lan
     restart: unless-stopped
