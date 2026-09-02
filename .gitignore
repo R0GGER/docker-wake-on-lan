@@ -4,3 +4,4 @@ __pycache__/
 venv/
 config/
 .pytest_cache/
+CHANGELOG.md
