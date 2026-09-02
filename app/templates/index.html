@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en"
+      data-auth-required="{{ 'true' if auth_required else 'false' }}"
+      data-authenticated="{{ 'true' if authenticated else 'false' }}"
+      data-theme-default="{{ default_theme }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" id="theme-color" content="#2e3a8c">
+  <title>Wake on LAN</title>
+  <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}?v=4" type="image/svg+xml">
+
+  <script>
+    // Resolve the theme before the stylesheet paints, otherwise the wrong
+    // colours flash briefly. The rest of the logic lives in app.js.
+    (function () {
+      var root = document.documentElement;
+      var stored = null;
+      try {
+        stored = localStorage.getItem("wol-theme");
+      } catch (err) {
+        /* storage blocked, fall back to the configured default */
+      }
+      var preference = stored || root.dataset.themeDefault || "auto";
+      if (["auto", "light", "dark"].indexOf(preference) === -1) preference = "auto";
+      root.dataset.themePreference = preference;
+      root.dataset.theme =
+        preference === "dark" ||
+        (preference === "auto" && window.matchMedia("(prefers-color-scheme: dark)").matches)
+          ? "dark"
+          : "light";
+    })();
+  </script>
+
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=19">
+</head>
+<body>
+  <div id="login" class="login-scaffold"{% if authenticated %} hidden{% endif %}>
+    <button id="theme-toggle-login" class="icon-btn theme-corner" aria-label="Change theme"></button>
+
+    <form class="card elevated login-card" id="login-form"{% if authenticated or not password_login %} hidden{% endif %}>
+      <div class="login-head">
+        <span class="app-icon app-mascot" aria-hidden="true">
+          <img class="mascot-img" src="{{ url_for('static', filename='chicken.svg') }}" alt="">
+        </span>
+        <h1 class="headline-small">Wake on LAN</h1>
+      </div>
+      <p class="body-medium on-surface-variant">Enter the password to continue.</p>
+
+      <label class="textfield">
+        <input type="password" id="login-password" placeholder=" " autocomplete="current-password" required>
+        <span>Password</span>
+      </label>
+
+      <p class="body-small dialog-error" id="login-error" hidden></p>
+      <button type="submit" class="btn filled">Sign in</button>
+    </form>
+
+    <div class="card elevated login-card" id="login-notice"{% if authenticated or password_login %} hidden{% endif %}>
+      <div class="login-head">
+        <span class="app-icon" data-icon="key" aria-hidden="true"></span>
+        <h1 class="headline-small">API access only</h1>
+      </div>
+      <p class="body-medium on-surface-variant">
+        This instance accepts an API key but has no password, so there is nothing to
+        sign in with. Set <code>WEBUI_PASSWORD</code> to use the web interface, or
+        remove <code>API_KEY</code> to open it up.
+      </p>
+    </div>
+  </div>
+
+  <div id="app"{% if not authenticated %} hidden{% endif %}>
+    <header class="top-app-bar">
+      <div class="bar-leading">
+        <button type="button" class="app-icon app-mascot" id="app-mascot" aria-label="Wake on LAN" title="Kukeleku!">
+          <img class="mascot-img" src="{{ url_for('static', filename='chicken.svg') }}" alt="">
+          <span class="mascot-bubble" aria-hidden="true">Kukeleku!</span>
+        </button>
+        <h1 class="title-large">Wake on LAN</h1>
+      </div>
+      <div class="bar-trailing">
+        <button id="theme-toggle" class="icon-btn" aria-label="Change theme"></button>
+        <button id="refresh" class="icon-btn" data-icon="refresh" aria-label="Refresh" title="Refresh"></button>
+        <button id="logout" class="icon-btn" data-icon="logout" aria-label="Sign out" title="Sign out" hidden></button>
+      </div>
+    </header>
+
+    <main>
+      <div class="banner body-medium" id="banner" hidden>
+        <span data-icon="error" aria-hidden="true"></span>
+        <span id="banner-text"></span>
+      </div>
+
+      <section id="devices" class="device-grid"></section>
+
+      <div class="empty-state" id="empty" hidden>
+        <span data-icon="devices" data-icon-size="48" aria-hidden="true"></span>
+        <p class="title-medium">No devices yet</p>
+        <p class="body-medium">Add a device to wake or shut it down with one tap.</p>
+      </div>
+
+      <details class="card outlined quick-wake">
+        <summary>
+          <span data-icon="bolt" data-icon-size="18" aria-hidden="true"></span>
+          Quick wake without saving
+        </summary>
+        <form id="quick-form">
+          <label class="textfield">
+            <input type="text" id="quick-mac" placeholder=" " spellcheck="false" required>
+            <span>MAC address</span>
+            <span class="supporting-text body-small">aa:bb:cc:dd:ee:ff</span>
+          </label>
+          <button type="submit" class="btn tonal">Send packet</button>
+        </form>
+      </details>
+    </main>
+
+    <button id="add-device" class="fab">
+      <span data-icon="add" aria-hidden="true"></span>
+      Add device
+    </button>
+  </div>
+
+  <dialog id="device-dialog">
+    <form id="device-form" method="dialog">
+      <h2 class="headline-small" id="dialog-title">Add device</h2>
+
+      <div class="dialog-fields">
+        <label class="textfield">
+          <input type="text" name="name" maxlength="64" placeholder=" ">
+          <span>Name</span>
+        </label>
+
+        <label class="textfield">
+          <input type="text" name="mac" placeholder=" " spellcheck="false" required>
+          <span>MAC address</span>
+          <span class="supporting-text body-small">aa:bb:cc:dd:ee:ff</span>
+        </label>
+
+        <label class="textfield">
+          <input type="text" name="host" placeholder=" " spellcheck="false">
+          <span>Hostname or IP</span>
+          <span class="supporting-text body-small">Status, shutdown, and directing the magic packet</span>
+        </label>
+
+        <div class="row">
+          <label class="textfield">
+            <input type="text" name="ports" placeholder=" ">
+            <span>Status ports</span>
+            <span class="supporting-text body-small">Default 22, 3389, 445, 80</span>
+          </label>
+          <label class="textfield">
+            <input type="number" name="repeat" min="1" max="20" value="3" placeholder=" ">
+            <span>Repeat packets</span>
+          </label>
+        </div>
+
+        <label class="textfield">
+          <input type="text" name="broadcast" placeholder=" " spellcheck="false">
+          <span>Broadcast address</span>
+          <span class="supporting-text body-small">Optional, e.g. 192.168.1.255</span>
+        </label>
+
+        <label class="textfield">
+          <input type="text" name="schedule" placeholder=" " spellcheck="false">
+          <span>Schedule</span>
+          <span class="supporting-text body-small">Cron, e.g. 0 7 * * 1-5 for weekdays at 07:00</span>
+        </label>
+
+        <label class="textfield">
+          <select name="shutdown_method" id="shutdown-method">
+            <option value="">Not configured</option>
+            <option value="ssh">SSH (Linux, NAS)</option>
+            <option value="rpc">Windows (RPC)</option>
+            <option value="sol">Sleep-on-LAN</option>
+          </select>
+          <span>Remote shutdown</span>
+          <span class="supporting-text body-small" id="shutdown-hint">How this device should be powered off</span>
+        </label>
+
+        <div id="shutdown-auth" hidden>
+          <div class="row">
+            <label class="textfield">
+              <input type="text" name="shutdown_user" maxlength="64" placeholder=" " autocomplete="username">
+              <span>Shutdown username</span>
+            </label>
+            <label class="textfield">
+              <input type="password" name="shutdown_password" maxlength="256" placeholder=" " autocomplete="new-password">
+              <span>Shutdown password</span>
+              <span class="supporting-text body-small">Leave blank to keep the current password</span>
+            </label>
+          </div>
+        </div>
+
+        <label class="textfield" id="shutdown-command-field" hidden>
+          <input type="text" name="shutdown_command" maxlength="255" placeholder=" " spellcheck="false">
+          <span>SSH command</span>
+          <span class="supporting-text body-small">Default: sudo -n poweroff</span>
+        </label>
+
+        <label class="switch">
+          <input type="checkbox" name="enabled" checked>
+          <span class="track"><span class="handle"></span></span>
+          <span class="label-large">Enabled</span>
+        </label>
+      </div>
+
+      <p class="body-small dialog-error" id="dialog-error" hidden></p>
+
+      <menu class="dialog-actions">
+        <button type="button" class="btn text" id="dialog-cancel">Cancel</button>
+        <button type="submit" class="btn filled" id="dialog-save">Save</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <div id="snackbar-host" class="snackbar-host" aria-live="polite"></div>
+
+  <script type="application/json" id="bootstrap">{{ bootstrap|tojson }}</script>
+  <script src="{{ url_for('static', filename='app.js') }}?v=12"></script>
+</body>
+</html>
