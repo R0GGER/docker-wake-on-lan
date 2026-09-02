@@ -583,15 +583,252 @@ button.app-mascot:focus-visible {
 
 /* Layout */
 main {
-  max-width: 1080px;
+  max-width: 1280px;
   margin: 0 auto;
   padding: 1.5rem 1rem 6rem;
+}
+
+.list-toolbar {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.toolbar-end {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+#edit-countdown {
+  font-variant-numeric: tabular-nums;
+  min-width: 7.5rem;
+}
+
+.view-toggle {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--md-outline-variant);
+  border-radius: var(--md-shape-md);
+  overflow: hidden;
+}
+
+.view-toggle .icon-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 0;
+}
+
+.view-toggle .icon-btn[aria-pressed="true"] {
+  background: var(--md-secondary-container);
+  color: var(--md-on-secondary-container);
+}
+
+#app:not(.is-editing) .device-action-icons,
+#app:not(.is-editing) .section-drag,
+#app:not(.is-editing) [data-action="add-to-group"],
+#app:not(.is-editing) [data-action="edit-group"],
+#app:not(.is-editing) [data-action="delete-group"],
+#app:not(.is-editing) #add-group,
+#app:not(.is-editing) #add-device {
+  display: none;
+}
+
+#app:not(.is-editing) .device-card[draggable="true"] {
+  cursor: default;
+}
+
+.selection-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--md-shape-md);
+  background: var(--md-surface-container-high);
+  box-shadow: var(--md-elevation-1);
+  position: sticky;
+  top: 72px;
+  z-index: 2;
+}
+
+.selection-bar[hidden] {
+  display: none;
+}
+
+.selection-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-left: auto;
+}
+
+.device-check,
+.section-check {
+  display: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  cursor: pointer;
+  position: relative;
+}
+
+#app.is-selecting .device-check,
+#app.is-selecting .section-check {
+  display: grid;
+}
+
+.device-check input,
+.section-check input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.check-box {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 2px solid var(--md-outline);
+  border-radius: 4px;
+  color: transparent;
+  background: var(--md-surface);
+  transition: background-color var(--md-motion-short), border-color var(--md-motion-short),
+    color var(--md-motion-short);
+}
+
+.check-box svg {
+  width: 16px;
+  height: 16px;
+}
+
+.device-check input:checked + .check-box,
+.section-check input:checked + .check-box {
+  background: var(--md-primary);
+  border-color: var(--md-primary);
+  color: var(--md-on-primary);
+}
+
+.section-check input:indeterminate + .check-box {
+  background: var(--md-primary);
+  border-color: var(--md-primary);
+  color: var(--md-on-primary);
+}
+
+.device-check input:focus-visible + .check-box,
+.section-check input:focus-visible + .check-box {
+  outline: 3px solid var(--md-primary);
+  outline-offset: 2px;
+}
+
+#app.is-selecting .device-card {
+  cursor: pointer;
+  user-select: none;
+}
+
+.device-card.is-selected {
+  outline: 2px solid var(--md-primary);
+  outline-offset: 0;
+  background: var(--md-primary-container);
+}
+
+.device-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
 }
 
 .device-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr));
   gap: 1rem;
+}
+
+.device-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  min-height: 48px;
+}
+
+.section-drag {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 40px;
+  color: var(--md-on-surface-variant);
+  cursor: grab;
+  flex: 0 0 auto;
+  user-select: none;
+}
+
+.section-drag:active {
+  cursor: grabbing;
+}
+
+.section-toggle {
+  transition: transform var(--md-motion-medium);
+}
+
+.device-section.is-collapsed .section-toggle {
+  transform: rotate(-90deg);
+}
+
+.section-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+}
+
+.section-count {
+  margin-right: 0.5rem;
+}
+
+.section-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-left: auto;
+}
+
+.device-grid.is-empty {
+  min-height: 4.5rem;
+  border: 1px dashed var(--md-outline-variant);
+  border-radius: var(--md-shape-md);
+  background: transparent;
+}
+
+.device-section.is-drop-target .device-grid,
+.device-section.is-drop-target .section-header {
+  outline: 2px dashed var(--md-primary);
+  outline-offset: 2px;
+  border-radius: var(--md-shape-md);
+}
+
+.device-card[draggable="true"] {
+  cursor: grab;
+}
+
+.device-card.is-dragging,
+.device-section.is-dragging {
+  opacity: 0.45;
 }
 
 /* Cards */
@@ -725,6 +962,75 @@ main {
 
 .result.fail {
   color: var(--md-error);
+}
+
+/* List view: compact rows, same card DOM */
+#app.is-list-view .device-list {
+  gap: 1rem;
+}
+
+#app.is-list-view .device-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+#app.is-list-view .device-card {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  padding: 0.5rem 0.75rem;
+}
+
+#app.is-list-view .device-head {
+  flex: 1 1 14rem;
+  min-width: 0;
+}
+
+#app.is-list-view .device-avatar {
+  width: 32px;
+  height: 32px;
+}
+
+#app.is-list-view .device-meta {
+  flex: 1 1 10rem;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+#app.is-list-view .device-actions {
+  flex: 0 1 auto;
+  margin-top: 0;
+  padding-top: 0;
+}
+
+#app.is-list-view .device-actions .btn {
+  flex: 0 0 auto;
+}
+
+#app.is-list-view .result {
+  flex: 1 1 100%;
+  min-height: 0;
+}
+
+#app.is-list-view .result:empty {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  #app.is-list-view .device-actions .btn-label {
+    display: none;
+  }
+
+  #app.is-list-view .device-actions .btn.has-icon {
+    padding-inline: 0.5rem;
+    min-width: 40px;
+    width: 40px;
+  }
 }
 
 /* Chips */
@@ -1197,5 +1503,20 @@ dialog h2 {
   .quick-wake .btn {
     align-self: flex-end;
     margin-top: 0;
+  }
+
+  .section-actions {
+    width: 100%;
+    margin-left: 0;
+    padding-left: 2rem;
+  }
+
+  .selection-bar {
+    top: 56px;
+  }
+
+  .selection-actions {
+    width: 100%;
+    margin-left: 0;
   }
 }
