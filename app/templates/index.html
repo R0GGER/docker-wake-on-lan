@@ -33,7 +33,7 @@
     })();
   </script>
 
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=19">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=27">
 </head>
 <body>
   <div id="login" class="login-scaffold"{% if authenticated %} hidden{% endif %}>
@@ -92,12 +92,54 @@
         <span id="banner-text"></span>
       </div>
 
+      <div class="list-toolbar">
+        <button type="button" class="btn tonal has-icon" id="select-mode" aria-pressed="false">
+          <span data-icon="checklist" aria-hidden="true"></span>
+          Select
+        </button>
+        <div class="toolbar-end">
+          <span class="body-small on-surface-variant" id="edit-countdown" hidden></span>
+          <button type="button" class="btn filled has-icon" id="page-save" hidden>
+            <span data-icon="check" aria-hidden="true"></span>
+            Save
+          </button>
+          <button type="button" class="btn tonal has-icon" id="add-group">
+            <span data-icon="folder" aria-hidden="true"></span>
+            Add group
+          </button>
+          <div class="view-toggle" role="group" aria-label="View">
+            <button type="button" class="icon-btn" id="view-cards" aria-pressed="true" title="Cards" aria-label="Cards">
+              <span data-icon="grid_view" aria-hidden="true"></span>
+            </button>
+            <button type="button" class="icon-btn" id="view-list" aria-pressed="false" title="List" aria-label="List">
+              <span data-icon="view_list" aria-hidden="true"></span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="selection-bar" id="selection-bar" hidden>
+        <span class="title-medium" id="selection-count">0 selected</span>
+        <div class="selection-actions">
+          <button type="button" class="btn text" id="selection-all">Select all</button>
+          <button type="button" class="btn filled has-icon" id="selection-wake" disabled>
+            <span data-icon="bolt" aria-hidden="true"></span>
+            Wake
+          </button>
+          <button type="button" class="btn tonal danger has-icon" id="selection-shutdown" disabled>
+            <span data-icon="power" aria-hidden="true"></span>
+            Shutdown
+          </button>
+          <button type="button" class="btn text" id="selection-done">Done</button>
+        </div>
+      </div>
+
       <section id="devices" class="device-grid"></section>
 
       <div class="empty-state" id="empty" hidden>
         <span data-icon="devices" data-icon-size="48" aria-hidden="true"></span>
         <p class="title-medium">No devices yet</p>
-        <p class="body-medium">Add a device to wake or shut it down with one tap.</p>
+        <p class="body-medium">Tap Edit to add a device, then wake or shut it down with one tap.</p>
       </div>
 
       <details class="card outlined quick-wake">
@@ -116,6 +158,10 @@
       </details>
     </main>
 
+    <button type="button" class="fab" id="page-edit">
+      <span data-icon="edit" aria-hidden="true"></span>
+      Edit
+    </button>
     <button id="add-device" class="fab">
       <span data-icon="add" aria-hidden="true"></span>
       Add device
@@ -130,6 +176,13 @@
         <label class="textfield">
           <input type="text" name="name" maxlength="64" placeholder=" ">
           <span>Name</span>
+        </label>
+
+        <label class="textfield" id="group-field" hidden>
+          <select name="group_id" id="device-group">
+            <option value="">Ungrouped</option>
+          </select>
+          <span>Group</span>
         </label>
 
         <label class="textfield">
@@ -215,9 +268,29 @@
     </form>
   </dialog>
 
+  <dialog id="group-dialog">
+    <form id="group-form" method="dialog">
+      <h2 class="headline-small" id="group-dialog-title">Add group</h2>
+
+      <div class="dialog-fields">
+        <label class="textfield">
+          <input type="text" name="name" maxlength="64" placeholder=" " required>
+          <span>Name</span>
+        </label>
+      </div>
+
+      <p class="body-small dialog-error" id="group-dialog-error" hidden></p>
+
+      <menu class="dialog-actions">
+        <button type="button" class="btn text" id="group-dialog-cancel">Cancel</button>
+        <button type="submit" class="btn filled" id="group-dialog-save">Save</button>
+      </menu>
+    </form>
+  </dialog>
+
   <div id="snackbar-host" class="snackbar-host" aria-live="polite"></div>
 
   <script type="application/json" id="bootstrap">{{ bootstrap|tojson }}</script>
-  <script src="{{ url_for('static', filename='app.js') }}?v=12"></script>
+  <script src="{{ url_for('static', filename='app.js') }}?v=19"></script>
 </body>
 </html>
