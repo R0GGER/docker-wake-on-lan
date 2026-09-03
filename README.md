@@ -37,7 +37,8 @@ services:
     # Host networking is required on Linux: broadcast packets do not cross the Docker bridge.
     # It also means port mappings are ignored, so PORT decides where the UI listens.
     # Docker Desktop (Windows/Mac) uses a VM: set each device's IP so packets are routed
-    # to the LAN as unicast / directed broadcast instead of 255.255.255.255.
+    # to the LAN as unicast / directed broadcast instead of 255.255.255.255. The UI is then
+    # not on localhost either; see "Docker Desktop on Windows or Mac" in the README.
     network_mode: host
     environment:
       MODE: web
@@ -61,6 +62,25 @@ The UI uses Material 3 and includes a light and a dark theme. Styles and icons a
 
 The button in the top-right corner cycles between following the system setting, light, and dark. That choice is stored in the browser, so it applies per device. `THEME` sets what a visitor sees before they pick a theme: `auto` (default), `light`, or `dark`.
 
+### Docker Desktop on Windows or Mac
+
+Docker Desktop runs containers in a Linux VM, and a host-networked container joins the network of
+that VM instead of your desktop. The UI is then not reachable at `http://localhost:8099` and the
+`PORTS` column of `docker ps` stays empty. Put a `docker-compose.override.yml` next to the compose
+file; compose loads it automatically, so the committed configuration stays fit for Linux:
+
+```
+services:
+  wake-on-lan:
+    network_mode: bridge
+    ports:
+      - "8099:8099"
+```
+
+Broadcast packets do not cross the Docker bridge, so give each device its IP, or set its broadcast
+field to the subnet broadcast such as `192.168.1.255`. Packets then leave as unicast and directed
+broadcast, which the VM can route.
+
 ### What the UI does
 
 * Add devices with a name, MAC address, and optionally a hostname or IP.
@@ -73,6 +93,7 @@ The button in the top-right corner cycles between following the system setting, 
 * Switch between card and list views. Groups stay available in both. The choice is stored in the browser.
 * Select several devices and wake or shut them down together.
 * Layout stays locked until you tap Edit. Save, or `EDIT_LOCK` seconds idle (default 300), locks add/edit/delete/drag again.
+* Build and test an API call on a separate page, and copy it as a webhook URL, curl, Home Assistant YAML, `fetch`, PowerShell, or a raw HTTP request. See [API & webhook generator](#api--webhook-generator).
 
 ## CLI mode
 
@@ -165,6 +186,20 @@ curl -X POST -H "X-API-Key: $API_KEY" -H 'Content-Type: application/json' \
      http://host:8080/api/wake
 ```
 
+### API & webhook generator
+
+`http://<host-ip>:8080/api-tester` is a separate page that builds a call for you: pick an endpoint,
+pick a device or group, set the options, and send it to see the actual response. The same request is
+shown as a webhook URL, a curl command, Home Assistant YAML, a `fetch` snippet, PowerShell, or a raw
+HTTP request, each with a copy button. The API key icon in the top-right corner of the web interface
+opens it.
+
+It starts on the wake link below, so the ready-to-use webhook is one device away. A switch moves the
+key into the URL for the other endpoints as well, for webhook senders that cannot set a header.
+
+Because the page is served by this container, testing works with your browser session; paste the
+`API_KEY` to build calls that also work from other machines.
+
 ### Wake link
 
 A browser can wake a saved device with a single GET. Set `API_KEY` and put it in the URL so you do not need to be logged in:
@@ -197,6 +232,7 @@ The key will appear in browser history and server logs, so use a long random `AP
 | `POST` | `/api/wake` | wake a MAC address without saving it |
 | `GET` | `/api/status` | status only; cheap to poll |
 | `GET` | `/healthz` | health check; no authentication |
+| `GET` | `/api-tester` | the generator page described above |
 
 ### Home Assistant example
 
@@ -228,5 +264,5 @@ Configure the method on each device. The password is stored in `devices.json` an
 
 * Status checks use TCP first because ICMP inside a container requires root or `CAP_NET_RAW`. Devices without an open port fall back to ping.
 * Broadcast on a different subnet than the Docker host usually needs the subnet broadcast address, for example `192.168.1.255`.
-* Docker Desktop on Windows or Mac runs inside a VM, so `255.255.255.255` never reaches your LAN. Give the device its IP (or set the broadcast field to `192.168.1.255`); packets are then sent as unicast and directed broadcast, which the VM can route.
+* Docker Desktop on Windows or Mac runs inside a VM, so `255.255.255.255` never reaches your LAN and a host-networked UI is not reachable at `localhost`. See [Docker Desktop on Windows or Mac](#docker-desktop-on-windows-or-mac).
 * The web login password is never written to disk; only its hash lives in memory for the lifetime of the container. Shutdown credentials are stored in `devices.json`.
