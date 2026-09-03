@@ -5,3 +5,4 @@ venv/
 config/
 .pytest_cache/
 CHANGELOG.md
+docker-compose.override.yml
