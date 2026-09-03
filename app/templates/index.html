@@ -33,7 +33,7 @@
     })();
   </script>
 
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=31">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=32">
 </head>
 <body>
   <div id="login" class="login-scaffold"{% if authenticated %} hidden{% endif %}>
@@ -80,6 +80,8 @@
         <h1 class="title-large">Wake on LAN</h1>
       </div>
       <div class="bar-trailing">
+        <a class="icon-btn" href="{{ url_for('api_tester') }}" target="_blank" rel="noopener"
+           data-icon="api" aria-label="API and webhook generator" title="API and webhook generator"></a>
         <button id="theme-toggle" class="icon-btn" aria-label="Change theme"></button>
         <button id="refresh" class="icon-btn" data-icon="refresh" aria-label="Refresh" title="Refresh"></button>
         <button id="logout" class="icon-btn" data-icon="logout" aria-label="Sign out" title="Sign out" hidden></button>
@@ -291,6 +293,6 @@
   <div id="snackbar-host" class="snackbar-host" aria-live="polite"></div>
 
   <script type="application/json" id="bootstrap">{{ bootstrap|tojson }}</script>
-  <script src="{{ url_for('static', filename='app.js') }}?v=21"></script>
+  <script src="{{ url_for('static', filename='app.js') }}?v=22"></script>
 </body>
 </html>

@@ -140,6 +140,11 @@ def create_app(store: DeviceStore | None = None, scheduler: WakeScheduler | None
             },
         )
 
+    @app.get("/api-tester")
+    def api_tester():
+        """Standalone page that builds, sends and exports API calls."""
+        return render_template("api.html", default_theme=default_theme())
+
     @app.get("/healthz")
     def healthz():
         return jsonify({"status": "ok", "devices": len(store.list())})

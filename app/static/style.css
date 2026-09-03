@@ -1564,3 +1564,219 @@ dialog h2 {
     margin-left: 0;
   }
 }
+
+/* API and webhook generator (/api-tester) */
+.api-intro {
+  max-width: 70ch;
+  margin-bottom: 1.5rem;
+}
+
+.api-layout {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
+  align-items: start;
+  gap: 1.5rem;
+}
+
+.api-column {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  min-width: 0;
+}
+
+.api-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding: 1.25rem;
+  min-width: 0;
+}
+
+.api-card-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.api-card-head h2 {
+  flex: 1 1 auto;
+}
+
+/* Keep the 40px button from stretching the heading row. */
+.api-card-head .icon-btn {
+  margin: -8px 0;
+}
+
+.api-params {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.api-params:empty {
+  display: none;
+}
+
+.api-switch {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+/* A switch the endpoint decides for you, e.g. the key in a wake link. */
+.switch:has(input:disabled) {
+  cursor: default;
+}
+
+.switch input:disabled + .track,
+.switch input:disabled ~ .label-large {
+  opacity: 0.55;
+}
+
+.api-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.api-response {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.api-response-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.api-details summary {
+  color: var(--md-primary);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.api-details[open] summary {
+  margin-bottom: 0.5rem;
+}
+
+.api-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--md-outline-variant);
+}
+
+.api-tab {
+  height: 36px;
+  padding-inline: 0.875rem;
+  border-radius: var(--md-shape-sm);
+  color: var(--md-on-surface-variant);
+}
+
+.api-tab[aria-selected="true"] {
+  background: var(--md-secondary-container);
+  color: var(--md-on-secondary-container);
+}
+
+/* Trailing button inside a filled text field, e.g. show or hide the API key. */
+.textfield.has-trailing input {
+  padding-right: 3.5rem;
+}
+
+.textfield .trailing-icon {
+  position: absolute;
+  top: 8px;
+  right: 0.25rem;
+}
+
+/* Multi-line variant of the filled text field, used for JSON bodies. */
+.textfield textarea {
+  display: block;
+  width: 100%;
+  padding: 1.5rem 1rem 0.5rem;
+  border: none;
+  border-bottom: 1px solid var(--md-on-surface-variant);
+  border-radius: var(--md-shape-xs) var(--md-shape-xs) 0 0;
+  background: var(--md-surface-container-highest);
+  color: var(--md-on-surface);
+  font-family: var(--md-font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.375rem;
+  resize: vertical;
+  transition: border-color var(--md-motion-short), background-color var(--md-motion-short);
+}
+
+.textfield textarea:hover {
+  border-bottom-color: var(--md-on-surface);
+}
+
+.textfield textarea:focus {
+  outline: none;
+  border-bottom: 2px solid var(--md-primary);
+  padding-bottom: calc(0.5rem - 1px);
+}
+
+.textfield textarea + span {
+  position: absolute;
+  left: 1rem;
+  top: 1rem;
+  color: var(--md-on-surface-variant);
+  font-size: 1rem;
+  line-height: 1.5rem;
+  pointer-events: none;
+  transition: transform var(--md-motion-short), color var(--md-motion-short);
+  transform-origin: left top;
+}
+
+.textfield textarea:focus + span,
+.textfield textarea:not(:placeholder-shown) + span {
+  transform: translateY(-0.625rem) scale(0.75);
+}
+
+.textfield textarea:focus + span {
+  color: var(--md-primary);
+}
+
+/* Generated snippets and raw responses */
+.code-block {
+  position: relative;
+  border: 1px solid var(--md-outline-variant);
+  border-radius: var(--md-shape-md);
+  background: var(--md-surface-container-lowest);
+}
+
+.code-block pre {
+  margin: 0;
+  padding: 1rem 3rem 1rem 1rem;
+  max-height: 22rem;
+  overflow: auto;
+  color: var(--md-on-surface);
+  font-family: var(--md-font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.375rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.code-copy {
+  position: absolute;
+  top: 0.25rem;
+  right: 0.25rem;
+  width: 32px;
+  height: 32px;
+  background: var(--md-surface-container-lowest);
+}
+
+@media (max-width: 600px) {
+  .api-card {
+    padding: 1rem;
+  }
+
+  .code-block pre {
+    font-size: 0.75rem;
+  }
+}

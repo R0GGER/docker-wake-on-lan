@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en" data-theme-default="{{ default_theme }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="referrer" content="no-referrer">
+  <meta name="theme-color" id="theme-color" content="#2e3a8c">
+  <title>API &amp; webhook — Wake on LAN</title>
+  <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}?v=4" type="image/svg+xml">
+
+  <script>
+    // Resolve the theme before the stylesheet paints, otherwise the wrong
+    // colours flash briefly. The rest of the logic lives in api.js.
+    (function () {
+      var root = document.documentElement;
+      var stored = null;
+      try {
+        stored = localStorage.getItem("wol-theme");
+      } catch (err) {
+        /* storage blocked, fall back to the configured default */
+      }
+      var preference = stored || root.dataset.themeDefault || "auto";
+      if (["auto", "light", "dark"].indexOf(preference) === -1) preference = "auto";
+      root.dataset.themePreference = preference;
+      root.dataset.theme =
+        preference === "dark" ||
+        (preference === "auto" && window.matchMedia("(prefers-color-scheme: dark)").matches)
+          ? "dark"
+          : "light";
+    })();
+  </script>
+
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=32">
+</head>
+<body>
+  <header class="top-app-bar">
+    <div class="bar-leading">
+      <span class="app-icon" data-icon="api" aria-hidden="true"></span>
+      <h1 class="title-large">API &amp; webhook</h1>
+    </div>
+    <div class="bar-trailing">
+      <button id="theme-toggle" class="icon-btn" aria-label="Change theme"></button>
+      <a class="icon-btn" href="{{ url_for('index') }}" data-icon="arrow_back"
+         title="Back to Wake on LAN" aria-label="Back to Wake on LAN"></a>
+    </div>
+  </header>
+
+  <main>
+    <div class="banner body-medium" id="banner" hidden>
+      <span data-icon="error" aria-hidden="true"></span>
+      <span id="banner-text"></span>
+    </div>
+
+    <p class="body-medium on-surface-variant api-intro">
+      Build a call to this Wake on LAN instance, send it to see what comes back, then copy
+      it as a webhook URL or a ready-made snippet.
+    </p>
+
+    <div class="api-layout">
+      <div class="api-column">
+        <section class="card outlined api-card">
+          <div class="api-card-head">
+            <h2 class="title-medium">Connection</h2>
+            <button type="button" class="icon-btn" id="reload-devices" data-icon="refresh"
+                    title="Reload devices and groups" aria-label="Reload devices and groups"></button>
+          </div>
+
+          <label class="textfield">
+            <input type="url" id="base-url" placeholder=" " spellcheck="false" autocomplete="off">
+            <span>Base URL</span>
+            <span class="supporting-text body-small">
+              The address other systems use to reach this instance, e.g. http://192.168.1.10:8099
+            </span>
+          </label>
+
+          <label class="textfield has-trailing">
+            <input type="password" id="api-key" placeholder=" " spellcheck="false" autocomplete="off">
+            <span>API key</span>
+            <span class="supporting-text body-small">
+              The API_KEY environment variable. Needed for anything outside this browser.
+            </span>
+            <button type="button" class="icon-btn trailing-icon" id="toggle-key"
+                    title="Show API key" aria-label="Show API key"></button>
+          </label>
+
+          <div class="api-switch">
+            <label class="switch">
+              <input type="checkbox" id="key-in-url">
+              <span class="track"><span class="handle"></span></span>
+              <span class="label-large">Put the key in the URL</span>
+            </label>
+            <p class="body-small on-surface-variant">
+              For webhooks that cannot send a header. The key then ends up in browser history and
+              server logs, so use a long random API key.
+            </p>
+          </div>
+
+          <div class="api-switch">
+            <label class="switch">
+              <input type="checkbox" id="remember-key">
+              <span class="track"><span class="handle"></span></span>
+              <span class="label-large">Remember on this device</span>
+            </label>
+            <p class="body-small on-surface-variant">
+              Stores the key in this browser's local storage. Leave it off on a shared computer.
+            </p>
+          </div>
+        </section>
+
+        <section class="card outlined api-card">
+          <h2 class="title-medium">Request</h2>
+
+          <label class="textfield">
+            <select id="endpoint"></select>
+            <span>Endpoint</span>
+            <span class="supporting-text body-small" id="endpoint-hint"></span>
+          </label>
+
+          <div id="params" class="api-params"></div>
+
+          <div class="api-actions">
+            <button type="button" class="btn filled has-icon" id="send">
+              <span data-icon="send" aria-hidden="true"></span>
+              Send request
+            </button>
+          </div>
+        </section>
+      </div>
+
+      <div class="api-column">
+        <section class="card outlined api-card">
+          <h2 class="title-medium">Response</h2>
+
+          <p class="body-medium on-surface-variant" id="response-empty">
+            Nothing sent yet. Fill in the request and press Send.
+          </p>
+
+          <div id="response" class="api-response" hidden>
+            <div class="api-response-head">
+              <span class="chip" id="response-status"></span>
+              <span class="body-small on-surface-variant" id="response-meta"></span>
+            </div>
+
+            <div class="code-block">
+              <button type="button" class="icon-btn code-copy" data-copy="response-body"
+                      title="Copy response" aria-label="Copy response"></button>
+              <pre id="response-body"></pre>
+            </div>
+
+            <details class="api-details">
+              <summary class="body-small">Response headers</summary>
+              <div class="code-block">
+                <pre id="response-headers"></pre>
+              </div>
+            </details>
+          </div>
+        </section>
+
+        <section class="card outlined api-card">
+          <h2 class="title-medium">Copy</h2>
+
+          <div class="api-tabs" id="format-tabs" role="tablist" aria-label="Output format"></div>
+
+          <p class="body-small on-surface-variant" id="format-hint"></p>
+
+          <div class="code-block">
+            <button type="button" class="icon-btn code-copy" data-copy="output"
+                    title="Copy snippet" aria-label="Copy snippet"></button>
+            <pre id="output"></pre>
+          </div>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <dialog id="confirm-dialog">
+    <form id="confirm-form" method="dialog">
+      <h2 class="headline-small">Really send this?</h2>
+      <div class="dialog-fields">
+        <p class="body-medium" id="confirm-text"></p>
+      </div>
+      <menu class="dialog-actions">
+        <button type="button" class="btn text" id="confirm-cancel">Cancel</button>
+        <button type="submit" class="btn tonal danger" id="confirm-ok">Send</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <div id="snackbar-host" class="snackbar-host" aria-live="polite"></div>
+
+  <script src="{{ url_for('static', filename='api.js') }}?v=1"></script>
+</body>
+</html>
