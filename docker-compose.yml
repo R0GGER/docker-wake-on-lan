@@ -7,7 +7,8 @@ services:
     # Host networking is required on Linux: broadcast packets do not cross the Docker bridge.
     # It also means port mappings are ignored, so PORT decides where the UI listens.
     # Docker Desktop (Windows/Mac) uses a VM: set each device's IP so packets are routed
-    # to the LAN as unicast / directed broadcast instead of 255.255.255.255.
+    # to the LAN as unicast / directed broadcast instead of 255.255.255.255. The UI is then
+    # not on localhost either; see "Docker Desktop on Windows or Mac" in the README.
     network_mode: host
     environment:
       MODE: web
