@@ -34,7 +34,7 @@ jobs:
       pushed: ${{ steps.vars.outputs.push }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # Secrets are not available in `if` expressions, so expose them as step outputs.
       - name: Resolve build variables
