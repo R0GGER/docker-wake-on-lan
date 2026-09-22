@@ -44,7 +44,8 @@ services:
       MODE: web
       PORT: 8099
       TZ: Europe/Amsterdam
-      THEME: auto # Theme: auto, light or dark    
+      THEME: auto # Theme: auto, light or dark
+      # DISCOVER_SUBNET: 192.168.1.0/24 # LAN to scan when the container is not on it
       WEBUI_PASSWORD: CHANGE-ME
       # Optional: token for the REST API (Home Assistant, scripts)
       # API_KEY: replace-with-a-long-random-string
@@ -81,9 +82,15 @@ Broadcast packets do not cross the Docker bridge, so give each device its IP, or
 field to the subnet broadcast such as `192.168.1.255`. Packets then leave as unicast and directed
 broadcast, which the VM can route.
 
+Discover has the same limit for ARP. Set `DISCOVER_SUBNET` to your LAN, for example
+`192.168.1.0/24`. The container then probes that subnet through the VM and reads MAC addresses
+from an SSH device you already configured on that subnet. An ARP sweep from the container itself
+still needs Linux with host networking.
+
 ### What the UI does
 
 * Add devices with a name, MAC address, and optionally a hostname or IP.
+* Discover devices from Edit mode. On the container's own subnet an ARP sweep finds IP, MAC address and vendor. `DISCOVER_SUBNET` (for example `192.168.1.0/24`) scans that network instead, which is how Docker Desktop can reach your LAN. MAC addresses are then read from an SSH device on that subnet. Short lookups add the hostname and common services such as SSH, HTTP and RDP.
 * Status per device: a TCP connect on the configured ports (default 22, 3389, 445, and 80), with ping as a fallback. The indicator turns green when the device responds.
 * Wake with feedback: if a host is set, the UI waits until the machine actually responds and reports how long it took.
 * Remote shutdown: SSH (Linux/NAS), Windows RPC, or a Sleep-on-LAN magic packet. If a host is set, the UI waits until the machine goes offline.
@@ -143,6 +150,7 @@ docker run --rm --net=host ghcr.io/r0gger/docker-wake-on-lan 11:22:33:44:55:66 -
 | `CONFIG_DIR` | `/config` | where `devices.json` and the session key are stored |
 | `THEME` | `auto` | default theme: `auto`, `light`, or `dark` |
 | `EDIT_LOCK` | `300` | seconds of idle time before Edit mode locks again; `0` disables auto-lock |
+| `DISCOVER_SUBNET` | container subnet | IPv4 network Discover scans, `/24` or smaller, for example `192.168.1.0/24`. Set this on Docker Desktop, where the container is not on your LAN. MAC addresses are read from an SSH device on that subnet. |
 | `AUTH_ENABLED` | `true` | set to `false` to run without a login |
 | `WEBUI_PASSWORD` | - | password for the web UI |
 | `API_KEY` | - | token for the REST API |
