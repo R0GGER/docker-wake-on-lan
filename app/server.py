@@ -6,7 +6,6 @@ import logging
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import timedelta
 
 from flask import Flask, jsonify, render_template, request
 
@@ -73,7 +72,7 @@ class StatusCache:
 def create_app(store: DeviceStore | None = None, scheduler: WakeScheduler | None = None) -> Flask:
     app = Flask(__name__)
     app.secret_key = auth.load_secret_key()
-    app.permanent_session_lifetime = timedelta(days=30)
+    app.permanent_session_lifetime = config.session_lifetime()
     app.json.sort_keys = False
 
     store = store or DeviceStore()
