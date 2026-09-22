@@ -33,7 +33,7 @@
     })();
   </script>
 
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=32">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=35">
 </head>
 <body>
   <div id="login" class="login-scaffold"{% if authenticated %} hidden{% endif %}>
@@ -141,7 +141,7 @@
       <div class="empty-state" id="empty" hidden>
         <span data-icon="devices" data-icon-size="48" aria-hidden="true"></span>
         <p class="title-medium">No devices yet</p>
-        <p class="body-medium">Tap Edit to add a device, then wake or shut it down with one tap.</p>
+        <p class="body-medium">Tap Edit to add a device or discover the network, then wake or shut it down with one tap.</p>
       </div>
 
       <details class="card outlined quick-wake">
@@ -164,10 +164,16 @@
       <span data-icon="edit" aria-hidden="true"></span>
       Edit
     </button>
-    <button id="add-device" class="fab">
-      <span data-icon="add" aria-hidden="true"></span>
-      Add device
-    </button>
+    <div class="fab-stack">
+      <button type="button" class="fab" id="discover">
+        <span data-icon="search" aria-hidden="true"></span>
+        Discover
+      </button>
+      <button type="button" id="add-device" class="fab">
+        <span data-icon="add" aria-hidden="true"></span>
+        Add device
+      </button>
+    </div>
   </div>
 
   <dialog id="device-dialog">
@@ -290,9 +296,23 @@
     </form>
   </dialog>
 
+  <dialog id="discover-dialog">
+    <form id="discover-form">
+      <h2 class="headline-small">Discover devices</h2>
+      <p class="body-medium" id="discover-status">Scanning the local network…</p>
+      <p class="body-small discover-warning" id="discover-warning" hidden></p>
+      <div class="dialog-fields" id="discover-results"></div>
+      <p class="body-small dialog-error" id="discover-error" hidden></p>
+      <menu class="dialog-actions">
+        <button type="button" class="btn text" id="discover-close">Close</button>
+        <button type="button" class="btn tonal" id="discover-again" hidden>Scan again</button>
+      </menu>
+    </form>
+  </dialog>
+
   <div id="snackbar-host" class="snackbar-host" aria-live="polite"></div>
 
   <script type="application/json" id="bootstrap">{{ bootstrap|tojson }}</script>
-  <script src="{{ url_for('static', filename='app.js') }}?v=22"></script>
+  <script src="{{ url_for('static', filename='app.js') }}?v=24"></script>
 </body>
 </html>

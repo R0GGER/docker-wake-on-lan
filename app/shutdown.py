@@ -95,21 +95,56 @@ def _shutdown_sol(device: dict) -> ShutdownResult:
     )
 
 
+def ssh_output(device: dict, command: str, timeout: float = 30) -> tuple[str, str]:
+    """Run one command over SSH and return stdout plus an error string."""
+    ssh_cmd, env, password, error = _ssh_invocation(device, command)
+    if error:
+        return "", error
+    completed, error = _run(
+        ssh_cmd,
+        env=env,
+        timeout=timeout,
+        timeout_message=f"SSH command timed out after {timeout:.0f}s",
+    )
+    if error:
+        return "", _redact(error, password)
+    stdout = completed.stdout or ""
+    if completed.returncode != 0 and not stdout.strip():
+        return "", _redact(_stderr_or_stdout(completed) or "SSH command failed", password)
+    return stdout, ""
+
+
 def _shutdown_ssh(device: dict) -> ShutdownResult:
+    command = (device.get("shutdown_command") or "").strip() or DEFAULT_SSH_COMMAND
+    ssh_cmd, env, password, error = _ssh_invocation(device, command)
+    if error:
+        return ShutdownResult(ok=False, method="ssh", error=error)
+
+    completed, error = _run(ssh_cmd, env=env)
+    if error:
+        return ShutdownResult(ok=False, method="ssh", error=_redact(error, password))
+    if completed.returncode != 0:
+        return ShutdownResult(
+            ok=False,
+            method="ssh",
+            error=_redact(_stderr_or_stdout(completed) or "SSH shutdown failed", password),
+        )
+    return ShutdownResult(ok=True, method="ssh", detail="Shutdown command sent over SSH")
+
+
+def _ssh_invocation(
+    device: dict, command: str
+) -> tuple[list[str] | None, dict | None, str, str]:
+    """Build an SSH command. Returns argv, env, password and an error string."""
     ssh = shutil.which("ssh")
     if not ssh:
-        return ShutdownResult(
-            ok=False, method="ssh", error="SSH client is not available in this image"
-        )
+        return None, None, "", "SSH client is not available in this image"
 
     host = (device.get("host") or "").strip()
     user = (device.get("shutdown_user") or "").strip()
     password = device.get("shutdown_password") or ""
-    command = (device.get("shutdown_command") or "").strip() or DEFAULT_SSH_COMMAND
     if not host or not user:
-        return ShutdownResult(
-            ok=False, method="ssh", error="SSH shutdown needs a host and a username"
-        )
+        return None, None, "", "SSH needs a host and a username"
 
     ssh_cmd = [
         ssh,
@@ -133,24 +168,15 @@ def _shutdown_ssh(device: dict) -> ShutdownResult:
     if password:
         sshpass = shutil.which("sshpass")
         if not sshpass:
-            return ShutdownResult(
-                ok=False,
-                method="ssh",
-                error="sshpass is not available; mount an SSH key in /config instead",
+            return (
+                None,
+                None,
+                "",
+                "sshpass is not available; mount an SSH key in /config instead",
             )
         ssh_cmd = [sshpass, "-e", *ssh_cmd]
         env["SSHPASS"] = password
-
-    completed, error = _run(ssh_cmd, env=env)
-    if error:
-        return ShutdownResult(ok=False, method="ssh", error=_redact(error, password))
-    if completed.returncode != 0:
-        return ShutdownResult(
-            ok=False,
-            method="ssh",
-            error=_redact(_stderr_or_stdout(completed) or "SSH shutdown failed", password),
-        )
-    return ShutdownResult(ok=True, method="ssh", detail="Shutdown command sent over SSH")
+    return ssh_cmd, env, password, ""
 
 
 def _shutdown_windows(device: dict) -> ShutdownResult:
@@ -225,17 +251,22 @@ def _ssh_identity_files() -> list[str]:
     return files
 
 
-def _run(cmd: list[str], env: dict | None = None) -> tuple[subprocess.CompletedProcess | None, str]:
+def _run(
+    cmd: list[str],
+    env: dict | None = None,
+    timeout: float = COMMAND_TIMEOUT,
+    timeout_message: str = "",
+) -> tuple[subprocess.CompletedProcess | None, str]:
     try:
         completed = subprocess.run(
             cmd,
             capture_output=True,
             text=True,
-            timeout=COMMAND_TIMEOUT,
+            timeout=timeout,
             env=env,
         )
     except subprocess.TimeoutExpired:
-        return None, f"Shutdown command timed out after {COMMAND_TIMEOUT}s"
+        return None, timeout_message or f"Shutdown command timed out after {timeout:.0f}s"
     except OSError as exc:
         return None, str(exc)
     return completed, ""
@@ -257,4 +288,5 @@ __all__ = [
     "reversed_mac",
     "shutdown_configured",
     "shutdown_device",
+    "ssh_output",
 ]

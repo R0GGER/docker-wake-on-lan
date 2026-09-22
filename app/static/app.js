@@ -46,6 +46,8 @@ const ICONS = {
   view_list:
     "M3 14h4v-4H3v4zm0 5h4v-4H3v4zM3 9h4V5H3v4zm5 5h13v-4H8v4zm0 5h13v-4H8v4zM8 5v4h13V5H8z",
   copy: "M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z",
+  search:
+    "M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z",
   api: "M14 12l-2 2-2-2 2-2 2 2zm-2-6l2.12 2.12 2.5-2.5L12 1 6.88 6.12l2.5 2.5L12 6zm-6 6l2.12-2.12-2.5-2.5L1 12l5.12 5.12 2.5-2.5L6 12zm12 0l-2.12 2.12 2.5 2.5L23 12l-5.12-5.12-2.5 2.5L18 12zm-6 6l-2.12-2.12-2.5 2.5L12 23l5.12-5.12-2.5-2.5L12 18z",
 };
 
@@ -83,6 +85,15 @@ const el = {
   bannerText: document.getElementById("banner-text"),
   refresh: document.getElementById("refresh"),
   addDevice: document.getElementById("add-device"),
+  discover: document.getElementById("discover"),
+  discoverDialog: document.getElementById("discover-dialog"),
+  discoverForm: document.getElementById("discover-form"),
+  discoverStatus: document.getElementById("discover-status"),
+  discoverWarning: document.getElementById("discover-warning"),
+  discoverResults: document.getElementById("discover-results"),
+  discoverError: document.getElementById("discover-error"),
+  discoverClose: document.getElementById("discover-close"),
+  discoverAgain: document.getElementById("discover-again"),
   addGroup: document.getElementById("add-group"),
   viewCards: document.getElementById("view-cards"),
   viewList: document.getElementById("view-list"),
@@ -141,6 +152,8 @@ let editBusy = false;
 let editTickTimer = null;
 let collapsedGroups = readCollapsed();
 let deviceView = readView();
+let discoverResult = null;
+let discoverPromise = null;
 
 const UNGROUPED_KEY = "__ungrouped__";
 
@@ -201,7 +214,7 @@ const LAYOUT_ACTIONS = new Set([
 ]);
 
 function layoutDialogOpen() {
-  return Boolean(el.dialog?.open || el.groupDialog?.open);
+  return Boolean(el.dialog?.open || el.groupDialog?.open || el.discoverDialog?.open);
 }
 
 function formatLockCountdown(ms) {
@@ -258,6 +271,7 @@ function lockPage({ auto = false } = {}) {
   }
   if (el.dialog?.open) el.dialog.close();
   if (el.groupDialog?.open) el.groupDialog.close();
+  if (el.discoverDialog?.open) el.discoverDialog.close();
   applyEditMode();
   snackbar(auto ? "Saved and locked" : "Saved", "ok");
 }
@@ -1009,10 +1023,142 @@ function renderDevicesSoon() {
   renderTimer = setTimeout(() => refreshStatus(), 2000);
 }
 
+const DISCOVER_STATUS_PORTS = new Set([22, 80, 445, 3389]);
+
+function normalizeMac(mac) {
+  const hex = String(mac || "")
+    .replace(/[^0-9a-fA-F]/g, "")
+    .toLowerCase();
+  if (hex.length !== 12) return String(mac || "").trim().toLowerCase();
+  return hex.match(/.{2}/g).join(":");
+}
+
+function discoverDash(value) {
+  const text = String(value || "").trim();
+  if (!text) return '<span class="on-surface-variant">—</span>';
+  return escapeHtml(text);
+}
+
+function discoverServices(services) {
+  if (!services?.length) return '<span class="on-surface-variant">—</span>';
+  return services
+    .map((service) => `<span class="service-chip">${escapeHtml(service.name)}</span>`)
+    .join("");
+}
+
+function knownMacs() {
+  return new Set(devices.map((device) => normalizeMac(device.mac)));
+}
+
+function renderDiscover() {
+  const data = discoverResult;
+  if (!data) {
+    el.discoverResults.replaceChildren();
+    return;
+  }
+  const count = data.devices.length;
+  const where = data.subnet ? ` on ${data.subnet}` : "";
+  el.discoverStatus.textContent =
+    count === 1 ? `1 device${where}` : `${count} devices${where}`;
+  if (data.warning) {
+    el.discoverWarning.textContent = data.warning;
+    el.discoverWarning.hidden = false;
+  } else {
+    el.discoverWarning.hidden = true;
+  }
+  if (!count) {
+    el.discoverResults.innerHTML =
+      '<p class="body-medium discover-empty">No devices responded on this subnet.</p>';
+    return;
+  }
+  const known = knownMacs();
+  const rows = data.devices
+    .map((host, index) => {
+      const added = Boolean(host.known) || known.has(normalizeMac(host.mac));
+      const action = added
+        ? '<span class="body-small on-surface-variant">Already added</span>'
+        : `<button type="button" class="btn filled" data-discover-add="${index}">Add</button>`;
+      return `<div class="discover-row">
+        <span class="discover-ip">${escapeHtml(host.ip)}</span>
+        <span class="discover-host">${discoverDash(host.hostname)}</span>
+        <span class="discover-vendor">${discoverDash(host.vendor)}</span>
+        <span class="discover-mac">${
+          host.mac
+            ? `<code>${escapeHtml(host.mac)}</code>`
+            : '<span class="on-surface-variant">—</span>'
+        }</span>
+        <span class="discover-services">${discoverServices(host.services)}</span>
+        <span class="discover-action">${action}</span>
+      </div>`;
+    })
+    .join("");
+  el.discoverResults.innerHTML = `<div class="discover-list">
+      <div class="discover-head body-small">
+        <span>IP</span><span>Hostname</span><span>Vendor</span><span>MAC</span><span>Services</span><span></span>
+      </div>
+      ${rows}
+    </div>`;
+}
+
+function discoverPrefill(host) {
+  const ports = (host.services || [])
+    .filter((service) => service.status || DISCOVER_STATUS_PORTS.has(service.port))
+    .map((service) => service.port);
+  return {
+    name: String(host.hostname || host.vendor || "").trim().slice(0, 64),
+    mac: host.mac,
+    host: host.ip,
+    ports,
+    enabled: true,
+  };
+}
+
+function showDiscoverDialog() {
+  el.discoverError.hidden = true;
+  if (!discoverPromise) {
+    el.discoverStatus.textContent = "Scanning the local network…";
+    el.discoverWarning.hidden = true;
+    el.discoverAgain.hidden = true;
+    if (!discoverResult) el.discoverResults.replaceChildren();
+  }
+  if (!el.discoverDialog.open) el.discoverDialog.showModal();
+}
+
+async function runDiscover() {
+  el.discoverStatus.textContent = "Scanning the local network…";
+  el.discoverError.hidden = true;
+  el.discoverWarning.hidden = true;
+  el.discoverAgain.hidden = true;
+  el.discoverResults.replaceChildren();
+  el.discoverDialog.setAttribute("aria-busy", "true");
+  try {
+    discoverResult = await api("/api/discover", { method: "POST", body: "{}" });
+    renderDiscover();
+  } catch (err) {
+    discoverResult = null;
+    el.discoverResults.replaceChildren();
+    el.discoverStatus.textContent = "Scan failed";
+    el.discoverError.textContent = err.message;
+    el.discoverError.hidden = false;
+  } finally {
+    el.discoverDialog.removeAttribute("aria-busy");
+    el.discoverAgain.hidden = false;
+  }
+}
+
+function startDiscover() {
+  if (!pageEditing || !el.discoverDialog) return;
+  showDiscoverDialog();
+  if (discoverPromise) return;
+  discoverPromise = runDiscover().finally(() => {
+    discoverPromise = null;
+  });
+}
+
 function openDialog(device, options = {}) {
   if (!pageEditing) return;
-  editingId = device ? device.id : null;
-  el.dialogTitle.textContent = device ? "Edit device" : "Add device";
+  editingId = device?.id || null;
+  el.dialogTitle.textContent = editingId ? "Edit device" : "Add device";
   el.dialogError.hidden = true;
 
   const form = el.form;
@@ -1102,6 +1248,7 @@ async function saveDevice(event) {
     }
     el.dialog.close();
     await loadDevices();
+    if (el.discoverDialog?.open) renderDiscover();
     touchEditTimer();
     snackbar(editingId ? "Device updated" : "Device added", "ok");
   } catch (err) {
@@ -1397,6 +1544,16 @@ el.addDevice.addEventListener("click", () => {
   if (!pageEditing) return;
   openDialog(null);
 });
+el.discover?.addEventListener("click", () => startDiscover());
+el.discoverAgain?.addEventListener("click", () => startDiscover());
+el.discoverClose?.addEventListener("click", () => el.discoverDialog.close());
+el.discoverForm?.addEventListener("submit", (event) => event.preventDefault());
+el.discoverResults?.addEventListener("click", (event) => {
+  const button = event.target.closest("[data-discover-add]");
+  if (!button || !discoverResult) return;
+  const host = discoverResult.devices[Number(button.dataset.discoverAdd)];
+  if (host) openDialog(discoverPrefill(host));
+});
 el.addGroup.addEventListener("click", () => {
   if (!pageEditing) return;
   openGroupDialog(null);
@@ -1416,6 +1573,8 @@ el.app.addEventListener("input", noteEditActivity);
 el.dialog.addEventListener("pointerdown", noteEditActivity);
 el.dialog.addEventListener("keydown", noteEditActivity);
 el.dialog.addEventListener("input", noteEditActivity);
+el.discoverDialog?.addEventListener("pointerdown", noteEditActivity);
+el.discoverDialog?.addEventListener("keydown", noteEditActivity);
 el.groupDialog.addEventListener("pointerdown", noteEditActivity);
 el.groupDialog.addEventListener("keydown", noteEditActivity);
 el.groupDialog.addEventListener("input", noteEditActivity);

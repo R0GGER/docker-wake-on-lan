@@ -386,6 +386,24 @@ code {
   z-index: 4;
 }
 
+.fab-stack {
+  position: fixed;
+  right: 1.5rem;
+  bottom: 1.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.fab-stack .fab {
+  position: relative;
+  right: auto;
+  bottom: auto;
+  pointer-events: auto;
+}
+
 .fab:hover {
   box-shadow: var(--md-elevation-4);
 }
@@ -635,7 +653,8 @@ main {
 #app:not(.is-editing) [data-action="edit-group"],
 #app:not(.is-editing) [data-action="delete-group"],
 #app:not(.is-editing) #add-group,
-#app:not(.is-editing) #add-device {
+#app:not(.is-editing) #add-device,
+#app:not(.is-editing) #discover {
   display: none;
 }
 
@@ -1413,6 +1432,84 @@ dialog h2 {
   color: var(--md-error);
 }
 
+#discover-dialog {
+  width: min(960px, calc(100vw - 2rem));
+}
+
+#discover-status {
+  margin: 0 0 0.75rem;
+}
+
+#discover-results.dialog-fields {
+  padding-top: 0;
+}
+
+.discover-warning {
+  margin: 0 0 0.75rem;
+  color: var(--md-on-surface-variant);
+}
+
+.discover-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.discover-head,
+.discover-row {
+  display: grid;
+  grid-template-columns: minmax(6.5rem, 0.9fr) minmax(6.5rem, 1.1fr) minmax(6rem, 1fr) minmax(8.5rem, 1.1fr) minmax(6rem, 1.2fr) auto;
+  gap: 0.5rem 0.75rem;
+  align-items: center;
+}
+
+.discover-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--md-shape-md);
+  background: var(--md-bar);
+  color: var(--md-on-bar);
+}
+
+.discover-row {
+  padding: 0.65rem 0.75rem;
+  border-radius: var(--md-shape-md);
+  background: var(--md-surface-container-highest);
+}
+
+.discover-row > * {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.discover-mac code {
+  font-size: 0.8125rem;
+}
+
+.discover-services {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.service-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.45rem;
+  border-radius: var(--md-shape-full);
+  background: var(--md-secondary-container);
+  color: var(--md-on-secondary-container);
+  font-size: 0.75rem;
+  line-height: 1.25rem;
+  white-space: nowrap;
+}
+
+.discover-empty {
+  margin: 0.25rem 0 0;
+}
+
 /* Snackbars */
 .snackbar-host {
   position: fixed;
@@ -1521,6 +1618,29 @@ dialog h2 {
   }
 }
 
+@media (max-width: 800px) {
+  .discover-head {
+    display: none;
+  }
+
+  .discover-row {
+    grid-template-columns: 1fr auto;
+    grid-template-areas:
+      "ip action"
+      "host host"
+      "vendor vendor"
+      "mac mac"
+      "services services";
+  }
+
+  .discover-ip { grid-area: ip; }
+  .discover-host { grid-area: host; }
+  .discover-vendor { grid-area: vendor; }
+  .discover-mac { grid-area: mac; }
+  .discover-services { grid-area: services; }
+  .discover-action { grid-area: action; }
+}
+
 @media (max-width: 600px) {
   .top-app-bar {
     height: 56px;
@@ -1535,9 +1655,15 @@ dialog h2 {
     gap: 1rem;
   }
 
-  .fab {
+  .fab,
+  .fab-stack {
     right: 1rem;
     bottom: 1rem;
+  }
+
+  .fab-stack {
+    flex-direction: column;
+    align-items: flex-end;
   }
 
   .quick-wake form {

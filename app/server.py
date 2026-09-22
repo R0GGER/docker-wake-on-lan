@@ -10,11 +10,11 @@ from datetime import timedelta
 
 from flask import Flask, jsonify, render_template, request
 
-from . import auth, config, status
+from . import auth, config, discover, status
 from .scheduler import WakeScheduler
 from .shutdown import shutdown_configured, shutdown_device
 from .store import DeviceStore, ValidationError, export_device
-from .wol import InvalidMacError, WakeResult, send_magic_packet
+from .wol import InvalidMacError, WakeResult, normalize_mac, send_magic_packet
 
 log = logging.getLogger(__name__)
 
@@ -440,6 +440,25 @@ def create_app(store: DeviceStore | None = None, scheduler: WakeScheduler | None
             host=payload.get("host") or None,
         )
         return jsonify(result.as_dict()), (200 if result.ok else 502)
+
+    @app.post("/api/discover")
+    @auth.protected
+    def api_discover():
+        try:
+            found = discover.scan(store.list())
+        except discover.DiscoveryBusy as exc:
+            return jsonify({"error": str(exc)}), 429
+        except discover.DiscoveryError as exc:
+            return jsonify({"error": str(exc)}), 503
+        known = set()
+        for device in store.list():
+            try:
+                known.add(normalize_mac(device.get("mac", "")))
+            except InvalidMacError:
+                continue
+        for host in found["devices"]:
+            host["known"] = host["mac"] in known
+        return jsonify(found)
 
     @app.get("/api/status")
     @auth.protected
