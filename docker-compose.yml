@@ -16,6 +16,7 @@ services:
       TZ: Europe/Amsterdam
       THEME: auto # Theme: auto, light or dark
       EDIT_LOCK: 300 # Seconds idle before the layout locks; 0 disables auto-lock
+      DISCOVER_SUBNET: 192.168.1.0/24 # LAN that Discover scans. Required on Docker Desktop.
       WEBUI_PASSWORD: CHANGE-ME
       # Optional: token for the REST API (Home Assistant, scripts)
       # API_KEY: replace-with-a-long-random-string
