@@ -178,7 +178,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload results to code scanning
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         continue-on-error: true
         with:
           sarif_file: ${{ runner.temp }}/trivy/results.sarif
