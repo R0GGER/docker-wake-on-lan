@@ -150,6 +150,7 @@ docker run --rm --net=host ghcr.io/r0gger/docker-wake-on-lan 11:22:33:44:55:66 -
 | `CONFIG_DIR` | `/config` | where `devices.json` and the session key are stored |
 | `THEME` | `auto` | default theme: `auto`, `light`, or `dark` |
 | `EDIT_LOCK` | `300` | seconds of idle time before Edit mode locks again; `0` disables auto-lock |
+| `SESSION_LIFETIME` | `30d` | how long a login stays valid after the last request. `m` minutes, `h` hours, `d` days, for example `30m`, `12h`, or `7d` |
 | `DISCOVER_SUBNET` | container subnet | IPv4 network Discover scans, `/24` or smaller, for example `192.168.1.0/24`. Set this on Docker Desktop, where the container is not on your LAN. MAC addresses are read from an SSH device on that subnet. |
 | `AUTH_ENABLED` | `true` | set to `false` to run without a login |
 | `WEBUI_PASSWORD` | - | password for the web UI |
@@ -161,7 +162,7 @@ docker run --rm --net=host ghcr.io/r0gger/docker-wake-on-lan 11:22:33:44:55:66 -
 The login screen only appears when `WEBUI_PASSWORD` is set:
 
 * Neither `WEBUI_PASSWORD` nor `API_KEY` set: no login. The UI is open to everyone on the network, and a warning is logged at startup.
-* `WEBUI_PASSWORD` set: login screen. The API also accepts `API_KEY` if you set one.
+* `WEBUI_PASSWORD` set: login screen. The API also accepts `API_KEY` if you set one. A login stays valid for `SESSION_LIFETIME` after the last request (default `30d`). Each request resets that timer.
 * Only `API_KEY` set: no login form, because there is no password to enter. The API stays protected and the browser shows a short explanation.
 
 Changing these variables requires recreating the container, not just restarting it:
