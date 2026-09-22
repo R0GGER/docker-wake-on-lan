@@ -7,7 +7,8 @@ LABEL org.opencontainers.image.title="docker-wake-on-lan" \
 # iputils: ICMP fallback when no TCP port answers
 # openssh-client + sshpass: SSH remote shutdown (password or /config key)
 # samba-common-tools: Windows RPC shutdown via `net rpc shutdown`
-RUN apk add --no-cache iputils tzdata openssh-client sshpass samba-common-tools
+# arp-scan: Edit-mode discovery of IP, MAC address and vendor on the local LAN
+RUN apk add --no-cache iputils tzdata openssh-client sshpass samba-common-tools arp-scan
 
 WORKDIR /opt/wake-on-lan
 
